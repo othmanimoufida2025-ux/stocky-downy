@@ -10,11 +10,11 @@ const getCatalog = unstable_cache(
     const offset = (page - 1) * pageSize;
     const [products, stores, config] = await Promise.all([
       db.execute({
-        sql: "SELECT p.id,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.status,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE p.status='active' AND s.status='active' ORDER BY p.name LIMIT ? OFFSET ?",
+        sql: "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,s.name AS store,s.slug AS store_slug,s.governorate FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE p.status='active' AND s.status='active' ORDER BY p.name LIMIT ? OFFSET ?",
         args: [pageSize + 1, offset],
       }),
       db.execute(
-        "SELECT id,name,status,description,logo,cover,governorate,'' AS owner FROM stocky_stores WHERE status='active' ORDER BY name",
+        "SELECT id,slug,name,status,description,logo,cover,governorate,whatsapp,'' AS owner FROM stocky_stores WHERE status='active' ORDER BY name",
       ),
       db.execute("SELECT value FROM stocky_settings WHERE id='public'"),
     ]);

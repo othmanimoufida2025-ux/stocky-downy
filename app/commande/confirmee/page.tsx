@@ -1,0 +1,6 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { CheckCircle2, MessageCircle, PackageCheck } from "lucide-react";
+import { StorefrontShell } from "@/components/storefront-shell";
+export const metadata: Metadata = { title: "Commande confirmée | Stocky Downy" };
+export default async function Page({ searchParams }: { searchParams: Promise<{ ref?: string }> }) { const refs = String((await searchParams).ref || "").split(",").filter(Boolean); return <StorefrontShell><main className="confirmation"><div className="confirmation-icon"><CheckCircle2 /></div><span>Commande enregistrée</span><h1>Merci, votre sélection est réservée.</h1><p>La boutique va confirmer la commande puis préparer votre livraison. Conservez {refs.length > 1 ? "ces références" : "cette référence"} pour le suivi.</p><div className="order-refs">{refs.map(ref => <strong key={ref}>{ref}</strong>)}</div><div className="confirmation-steps"><div><PackageCheck /><span>Confirmation boutique</span><small>Prochaine étape</small></div><div><span>2</span><span>Préparation</span></div><div><span>3</span><span>Livraison</span></div></div><div className="confirmation-actions"><Link href={`/suivi${refs[0] ? `?ref=${encodeURIComponent(refs[0])}` : ""}`}>Suivre ma commande</Link><a href="https://wa.me/21626107128"><MessageCircle /> Besoin d’aide</a></div></main></StorefrontShell>; }

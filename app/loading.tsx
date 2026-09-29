@@ -1,0 +1,1 @@
+export default function Loading() { return <main className="loading-page"><div className="loading-logo" /><div className="loading-hero" /><div className="loading-grid">{[1,2,3,4].map(x => <div key={x} />)}</div></main>; }

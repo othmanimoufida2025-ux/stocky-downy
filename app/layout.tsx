@@ -5,6 +5,7 @@ import './rich.css';
 import './soul.css';
 import './storefront.css';
 import './redesign.css';
+import './route-pages.css';
 import Reveal from '@/components/reveal';
 
 export const metadata: Metadata = {

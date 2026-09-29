@@ -16,7 +16,11 @@ import {
   createOutboxEntry,
   processEmailOutbox,
   normalizePhone,
+  loginWithOtp,
+  resetPasswordWithOtp,
 } from "@/lib/backend";
+import { entitySlug } from "@/lib/slug";
+import { orderRef } from "@/lib/order-ref";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET() {
@@ -73,7 +77,18 @@ export async function POST(req: NextRequest) {
         email,
         String(b.password || ""),
         String(b.code || ""),
+        b.role === "buyer" ? "buyer" : "seller",
       );
+      return NextResponse.json({ ok: true });
+    }
+    if (b.action === "verifyLogin") {
+      const email = String(b.email || "").trim().toLowerCase();
+      await loginWithOtp(email, String(b.code || ""));
+      return NextResponse.json({ ok: true });
+    }
+    if (b.action === "resetPassword") {
+      const email = String(b.email || "").trim().toLowerCase();
+      await resetPasswordWithOtp(email, String(b.code || ""), String(b.password || ""));
       return NextResponse.json({ ok: true });
     }
     const user = await identity();
@@ -81,8 +96,8 @@ export async function POST(req: NextRequest) {
       const phone = normalizePhone(String(b.phone || ""));
       const found = (
         await db.execute({
-          sql: "SELECT id,status,total,items,created FROM stocky_orders WHERE id=? AND (phone_normalized=? OR phone=?)",
-          args: [String(b.id || ""), phone, String(b.phone || "")],
+          sql: "SELECT id,ref,status,total,items,created,updated FROM stocky_orders WHERE UPPER(ref)=UPPER(?) AND phone_normalized=?",
+          args: [String(b.ref || b.id || "").trim(), phone],
         })
       ).rows[0];
       if (!found)
@@ -101,6 +116,8 @@ export async function POST(req: NextRequest) {
         !String(b.address || "").trim()
       )
         throw new Error("Complétez les coordonnées de livraison et le panier.");
+      if (!/^\d{8}$/.test(normalizePhone(String(b.phone))))
+        throw new Error("Utilisez un numéro tunisien valide à 8 chiffres.");
       const tx = await db.transaction("write");
       let committed = false;
       try {
@@ -158,11 +175,14 @@ export async function POST(req: NextRequest) {
           grouped.set(String(p.store_id), lines);
         }
         const ids: string[] = [];
+        const refs: string[] = [];
         let queuedEmails = 0;
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
         for (const [store, lines] of grouped) {
           const id = randomUUID();
+          const reference = orderRef();
           ids.push(id);
+          refs.push(reference);
           const subtotal = lines.reduce(
             (sum, product) => sum + product.price * product.quantity,
             0,
@@ -172,14 +192,17 @@ export async function POST(req: NextRequest) {
             (subtotal * commissionRate) / 100,
           );
           await tx.execute({
-            sql: "INSERT INTO stocky_orders(id,store_id,customer,phone,phone_normalized,address,items,subtotal,delivery_fee,commission_rate,commission_amount,total,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+            sql: "INSERT INTO stocky_orders(id,ref,store_id,customer,phone,phone_normalized,address,governorate,notes,items,subtotal,delivery_fee,commission_rate,commission_amount,total,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
             args: [
               id,
+              reference,
               store,
               String(b.customer).slice(0, 100),
               String(b.phone).slice(0, 30),
               normalizePhone(String(b.phone)),
               String(b.address).slice(0, 500),
+              String(b.governorate || "").slice(0, 80),
+              String(b.notes || "").slice(0, 1000),
               JSON.stringify(lines),
               subtotal,
               deliveryMillimes,
@@ -202,9 +225,9 @@ export async function POST(req: NextRequest) {
           if (owner?.email) {
             const email = createOutboxEntry({
               to: String(owner.email),
-              subject: `Nouvelle commande Stocky · ${id.slice(0, 8)}`,
+              subject: `Nouvelle commande Stocky · ${reference}`,
               heading: "Vous avez une nouvelle commande",
-              body: `Une nouvelle commande attend votre confirmation dans l’espace boutique. Référence : <strong>${id.slice(0, 8)}</strong>.`,
+              body: `Une nouvelle commande attend votre confirmation dans l’espace boutique. Référence : <strong>${reference}</strong>.`,
               actionLabel: "Ouvrir mes commandes",
               actionUrl: appUrl,
             });
@@ -229,7 +252,7 @@ export async function POST(req: NextRequest) {
         committed = true;
         revalidateTag("stocky-catalog");
         await processEmailOutbox(Math.max(queuedEmails, 1));
-        return NextResponse.json({ ok: true, orders: ids });
+        return NextResponse.json({ ok: true, orders: ids, refs });
       } catch (e) {
         if (!committed) await tx.rollback();
         throw e;
@@ -421,7 +444,7 @@ export async function POST(req: NextRequest) {
       if (!admin)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
       await db.execute(
-        "INSERT OR IGNORE INTO stocky_stores(id,owner,name,phone,status) VALUES('demo-store','demo-owner','Atelier Démo','DEMO','active')",
+        "INSERT OR IGNORE INTO stocky_stores(id,owner,name,phone,status,slug,description,governorate) VALUES('demo-store','demo-owner','Atelier Démo','DEMO','active','atelier-demo-demost','Une sélection tunisienne de pièces dormantes et revalorisées.','Tunis')",
       );
       const samples = [
         ["Robe satin terracotta", 45000, 8, "Femme"],
@@ -433,10 +456,14 @@ export async function POST(req: NextRequest) {
       ];
       await db.batch(
         samples.map((p, i) => ({
-          sql: "INSERT OR IGNORE INTO stocky_products(id,store_id,name,price,stock,category,description,image,status,demo) VALUES(?,'demo-store',?,?,?,?,?,'','active',1)",
+          sql: "INSERT OR IGNORE INTO stocky_products(id,store_id,name,slug,price,stock,category,description,image,status,demo,condition) VALUES(?,'demo-store',?,?,?,?,?,?,'','active',1,'Très bon état')",
           args: [
             "demo-" + i,
-            ...p,
+            p[0],
+            entitySlug(String(p[0]), "demo-" + i),
+            p[1],
+            p[2],
+            p[3],
             "Produit de démonstration — stock textile revalorisé.",
           ],
         })),
@@ -452,12 +479,14 @@ export async function POST(req: NextRequest) {
         /^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(value || ""))
           ? String(value)
           : "";
+      const storeId = String(own?.id || randomUUID());
       await db.execute({
-        sql: "INSERT INTO stocky_stores(id,owner,name,phone,description,logo,cover,address,governorate,whatsapp) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner) DO UPDATE SET name=excluded.name,phone=excluded.phone,description=excluded.description,logo=CASE WHEN excluded.logo='' THEN logo ELSE excluded.logo END,cover=CASE WHEN excluded.cover='' THEN cover ELSE excluded.cover END,address=excluded.address,governorate=excluded.governorate,whatsapp=excluded.whatsapp",
+        sql: "INSERT INTO stocky_stores(id,owner,name,slug,phone,description,logo,cover,address,governorate,whatsapp) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner) DO UPDATE SET name=excluded.name,phone=excluded.phone,description=excluded.description,logo=CASE WHEN excluded.logo='' THEN logo ELSE excluded.logo END,cover=CASE WHEN excluded.cover='' THEN cover ELSE excluded.cover END,address=excluded.address,governorate=excluded.governorate,whatsapp=excluded.whatsapp",
         args: [
-          randomUUID(),
+          storeId,
           String(user.id),
           String(b.name).slice(0, 100),
+          String(own?.slug || entitySlug(String(b.name), storeId)),
           String(b.phone).slice(0, 30),
           String(b.description || "").slice(0, 2000),
           media(b.logo),
@@ -489,12 +518,14 @@ export async function POST(req: NextRequest) {
         b.stock < 0
       )
         throw new Error("Vérifiez le nom, le prix et le stock.");
+      const productId = randomUUID();
       await db.execute({
-        sql: "INSERT INTO stocky_products(id,store_id,name,price,stock,category,description,image) VALUES(?,?,?,?,?,?,?,?)",
+        sql: "INSERT INTO stocky_products(id,store_id,name,slug,price,stock,category,description,image,condition) VALUES(?,?,?,?,?,?,?,?,?,?)",
         args: [
-          randomUUID(),
+          productId,
           String(own.id),
           String(b.name).slice(0, 150),
+          entitySlug(String(b.name), productId),
           Math.round(b.price * 1000),
           b.stock,
           String(b.category || "Mode"),
@@ -502,6 +533,7 @@ export async function POST(req: NextRequest) {
           /^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image))
             ? String(b.image)
             : "",
+          String(b.condition || "Très bon état").slice(0, 80),
         ],
       });
       const adminEmail = adminNotificationEmail();

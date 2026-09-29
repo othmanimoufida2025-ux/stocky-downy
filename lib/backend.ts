@@ -8,6 +8,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { cookies } from "next/headers";
+import { entitySlug } from "@/lib/slug";
+import { orderRef } from "@/lib/order-ref";
 export const settings = {
   url: process.env.TURSO_DATABASE_URL || "file:stocky.db",
   token: process.env.TURSO_AUTH_TOKEN,
@@ -87,6 +89,55 @@ async function migrateCoreSchema() {
     });
 }
 
+async function migrateRoutedStorefront() {
+  for (const [table, column, definition] of [
+    ["stocky_products", "slug", "TEXT"],
+    ["stocky_products", "condition", "TEXT DEFAULT 'Très bon état'"],
+    ["stocky_stores", "slug", "TEXT"],
+    ["stocky_orders", "ref", "TEXT"],
+    ["stocky_orders", "governorate", "TEXT DEFAULT ''"],
+    ["stocky_orders", "notes", "TEXT DEFAULT ''"],
+  ] as const)
+    await ensureColumn(table, column, definition);
+
+  await db.execute(
+    "CREATE TABLE IF NOT EXISTS stocky_product_images (id TEXT PRIMARY KEY, product_id TEXT NOT NULL, url TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0)",
+  );
+  const products = await db.execute(
+    "SELECT id,name FROM stocky_products WHERE slug IS NULL OR slug=''",
+  );
+  for (const product of products.rows)
+    await db.execute({
+      sql: "UPDATE stocky_products SET slug=? WHERE id=?",
+      args: [entitySlug(String(product.name), String(product.id)), String(product.id)],
+    });
+  const stores = await db.execute(
+    "SELECT id,name FROM stocky_stores WHERE slug IS NULL OR slug=''",
+  );
+  for (const store of stores.rows)
+    await db.execute({
+      sql: "UPDATE stocky_stores SET slug=? WHERE id=?",
+      args: [entitySlug(String(store.name), String(store.id)), String(store.id)],
+    });
+  const orders = await db.execute(
+    "SELECT id FROM stocky_orders WHERE ref IS NULL OR ref=''",
+  );
+  for (const order of orders.rows)
+    await db.execute({
+      sql: "UPDATE stocky_orders SET ref=? WHERE id=?",
+      args: [orderRef(), String(order.id)],
+    });
+  await db.batch(
+    [
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_slug ON stocky_products(slug)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_stores_slug ON stocky_stores(slug)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_ref ON stocky_orders(ref)",
+      "CREATE INDEX IF NOT EXISTS idx_product_images ON stocky_product_images(product_id,position)",
+    ],
+    "write",
+  );
+}
+
 export function init() {
   return (ready ||= (async () => {
     await db.execute(
@@ -101,6 +152,17 @@ export function init() {
       await db.execute({
         sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
         args: ["001-core-schema", Date.now()],
+      });
+    }
+    const routed = await db.execute({
+      sql: "SELECT id FROM stocky_schema_migrations WHERE id=?",
+      args: ["002-routed-storefront"],
+    });
+    if (!routed.rows.length) {
+      await migrateRoutedStorefront();
+      await db.execute({
+        sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
+        args: ["002-routed-storefront", Date.now()],
       });
     }
   })().catch((e) => {
@@ -517,6 +579,7 @@ export async function registerWithOtp(
   email: string,
   password: string,
   code: string,
+  role: "seller" | "buyer" = "seller",
 ) {
   await init();
   if (password.length < 10 || password.length > 128)
@@ -535,8 +598,8 @@ export async function registerWithOtp(
   await db.batch(
     [
       {
-        sql: "INSERT INTO stocky_users(id,email,role) VALUES(?,?,'seller')",
-        args: [id, email],
+        sql: "INSERT INTO stocky_users(id,email,role) VALUES(?,?,?)",
+        args: [id, email, role],
       },
       {
         sql: "INSERT INTO stocky_passwords(user_id,salt,hash) VALUES(?,?,?)",
@@ -555,4 +618,45 @@ export async function registerWithOtp(
     actionLabel: process.env.NEXT_PUBLIC_APP_URL ? "Créer ma boutique" : undefined,
     actionUrl: process.env.NEXT_PUBLIC_APP_URL,
   });
+}
+
+export async function loginWithOtp(email: string, code: string) {
+  await init();
+  const user = (
+    await db.execute({
+      sql: "SELECT id FROM stocky_users WHERE email=?",
+      args: [email],
+    })
+  ).rows[0];
+  if (!user) throw new Error("Aucun compte ne correspond à cette adresse.");
+  await consumeOtp(email, code);
+  await createSession(String(user.id), 604800000);
+}
+
+export async function resetPasswordWithOtp(
+  email: string,
+  code: string,
+  password: string,
+) {
+  await init();
+  if (password.length < 10 || password.length > 128)
+    throw new Error("Le mot de passe doit contenir entre 10 et 128 caractères.");
+  const user = (
+    await db.execute({
+      sql: "SELECT id FROM stocky_users WHERE email=?",
+      args: [email],
+    })
+  ).rows[0];
+  if (!user) throw new Error("Aucun compte ne correspond à cette adresse.");
+  await consumeOtp(email, code);
+  const salt = randomBytes(16).toString("hex");
+  await db.execute({
+    sql: "INSERT INTO stocky_passwords(user_id,salt,hash) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET salt=excluded.salt,hash=excluded.hash",
+    args: [String(user.id), salt, scryptSync(password, salt, 64).toString("hex")],
+  });
+  await db.execute({
+    sql: "DELETE FROM stocky_sessions WHERE user_id=?",
+    args: [String(user.id)],
+  });
+  await createSession(String(user.id), 604800000);
 }

@@ -1,0 +1,4 @@
+import type { MetadataRoute } from "next";
+import { publicProducts, publicShops } from "@/lib/storefront";
+export const dynamic = "force-dynamic";
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> { const base = process.env.NEXT_PUBLIC_APP_URL || "https://stocky-downy.vercel.app"; const [products, shops] = await Promise.all([publicProducts(), publicShops()]); const routes: MetadataRoute.Sitemap = ["", "/collection", "/boutiques", "/services", "/suivi", "/connexion", "/inscription"].map(path => ({ url: base + path, changeFrequency: "weekly", priority: path === "" ? 1 : .7 })); return [...routes, ...products.map(p => ({ url: `${base}/produit/${p.slug}`, changeFrequency: "daily" as const, priority: .8 })), ...shops.map(s => ({ url: `${base}/boutique/${s.slug}`, changeFrequency: "weekly" as const, priority: .7 }))]; }

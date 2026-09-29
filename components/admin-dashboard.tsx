@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Operations, type OperationsData } from "./operations";
+import { STATUS_FR } from "@/lib/order-ref";
 
 type Product = {
   id: string;
@@ -26,7 +27,7 @@ type Product = {
   store: string;
 };
 type Shop = { id: string; name: string; status: string };
-type Order = { id: string; customer: string; total: number; status: string };
+type Order = { id: string; ref?: string; customer: string; total: number; status: string };
 type AdminData = OperationsData & {
   products: Product[];
   stores: Shop[];
@@ -54,6 +55,7 @@ export function AdminDashboard({
   busy: boolean;
 }) {
   const [section, setSection] = useState("overview");
+  const [query, setQuery] = useState("");
   const revenue = data.orders.reduce((sum, o) => sum + Number(o.total), 0);
   const pendingStores = data.stores.filter(
     (s) => s.status === "pending",
@@ -172,11 +174,11 @@ export function AdminDashboard({
           </>
         )}
         {section === "stores" && (
-          <AdminTable
+          <><div className="admin-toolbar"><input aria-label="Rechercher une boutique" placeholder="Rechercher une boutique…" value={query} onChange={(e)=>setQuery(e.target.value)} /></div><AdminTable
             title="Vérification des boutiques"
             headers={["Boutique", "Statut", "Action"]}
           >
-            {data.stores.map((s) => (
+            {[...data.stores].sort((a,b)=>Number(b.status === "pending")-Number(a.status === "pending")).filter(s=>s.name.toLowerCase().includes(query.toLowerCase())).map((s) => (
               <tr key={s.id}>
                 <td>
                   <strong>{s.name}</strong>
@@ -202,12 +204,13 @@ export function AdminDashboard({
                 </td>
               </tr>
             ))}
-          </AdminTable>
+          </AdminTable></>
         )}
         {section === "products" && (
           <>
             <div className="admin-toolbar">
               <p>Les produits soumis restent invisibles jusqu’à validation.</p>
+              <input aria-label="Rechercher un produit" placeholder="Rechercher un produit…" value={query} onChange={(e)=>setQuery(e.target.value)} />
               <Button
                 variant="outline"
                 onClick={() => act({ action: "seedDemo" })}
@@ -227,7 +230,7 @@ export function AdminDashboard({
                 "Action",
               ]}
             >
-              {data.products.map((p) => (
+              {data.products.filter(p=>`${p.name} ${p.store}`.toLowerCase().includes(query.toLowerCase())).map((p) => (
                 <tr key={p.id}>
                   <td>
                     <strong>{p.name}</strong>
@@ -276,13 +279,13 @@ export function AdminDashboard({
           </>
         )}
         {section === "orders" && (
-          <AdminTable
+          <><div className="admin-toolbar"><input aria-label="Rechercher une commande" placeholder="Référence ou client…" value={query} onChange={(e)=>setQuery(e.target.value)} /></div><AdminTable
             title="Toutes les commandes"
             headers={["Référence", "Client", "Total", "Statut"]}
           >
-            {data.orders.map((o) => (
+            {data.orders.filter(o=>`${o.ref || o.id} ${o.customer}`.toLowerCase().includes(query.toLowerCase())).map((o) => (
               <tr key={o.id}>
-                <td>{o.id.slice(0, 8)}</td>
+                <td>{o.ref || o.id.slice(0, 8)}</td>
                 <td>{o.customer}</td>
                 <td>{money(o.total)}</td>
                 <td>
@@ -296,15 +299,15 @@ export function AdminDashboard({
                       })
                     }
                   >
-                    <option>{o.status}</option>
+                    <option value={o.status}>{STATUS_FR[o.status] || o.status}</option>
                     {transitions[o.status]?.map((s) => (
-                      <option key={s}>{s}</option>
+                      <option key={s} value={s}>{STATUS_FR[s] || s}</option>
                     ))}
                   </select>
                 </td>
               </tr>
             ))}
-          </AdminTable>
+          </AdminTable></>
         )}
         {section === "services" && <Operations key="services" data={data} act={act} initialTab="Demandes" />}{" "}
         {section === "users" && (
@@ -367,7 +370,8 @@ function Kpi({
   );
 }
 function Status({ value }: { value: string }) {
-  return <span className={`admin-status ${value}`}>{value}</span>;
+  const labels: Record<string,string> = { active:"Active", pending:"En attente", suspended:"Suspendue", archived:"Archivé", ...STATUS_FR };
+  return <span className={`admin-status ${value}`}>{labels[value] || value}</span>;
 }
 function AdminTable({
   title,

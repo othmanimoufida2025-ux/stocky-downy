@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   Building2,
   Check,
@@ -24,14 +24,19 @@ export function SellerOnboarding({
   act,
   busy,
   onComplete,
+  accountReady = false,
 }: {
   act: Action;
   busy: boolean;
   onComplete: () => void;
+  accountReady?: boolean;
 }) {
-  const [register, setRegister] = useState(false),
-    [step, setStep] = useState(0),
-    [store, setStore] = useState<Record<string, string>>({}),
+  const [register, setRegister] = useState(accountReady),
+    [step, setStep] = useState(accountReady ? 1 : 0),
+    [store, setStore] = useState<Record<string, string>>(() => {
+      if (typeof window === "undefined") return {};
+      try { return JSON.parse(sessionStorage.getItem("stocky-onboarding") || "{}"); } catch { return {}; }
+    }),
     [logo, setLogo] = useState(""),
     [cover, setCover] = useState(""),
     [productImage, setProductImage] = useState(""),
@@ -39,6 +44,7 @@ export function SellerOnboarding({
     [credentials, setCredentials] = useState({ email: "", password: "" }),
     [uploading, setUploading] = useState(false),
     [localError, setLocalError] = useState("");
+  useEffect(() => { sessionStorage.setItem("stocky-onboarding", JSON.stringify(store)); }, [store]);
   async function upload(file: File | undefined, setter: (url: string) => void) {
     if (!file) return;
     setUploading(true);
@@ -104,7 +110,7 @@ export function SellerOnboarding({
   }
   return (
     <div className="onboarding">
-      <div className="onboarding-switch">
+      {!accountReady && <div className="onboarding-switch">
         <button
           className={!register ? "active" : ""}
           onClick={() => {
@@ -125,7 +131,7 @@ export function SellerOnboarding({
         >
           Créer ma boutique
         </button>
-      </div>
+      </div>}
       {register && (
         <div className="stepper">
           {steps.map(([name, Icon], index) => (
@@ -233,11 +239,11 @@ export function SellerOnboarding({
           <div className="field-row">
             <label>
               Nom de la boutique
-              <input name="name" required maxLength={100} />
+              <input name="name" required maxLength={100} defaultValue={store.name} />
             </label>
             <label>
               Téléphone
-              <input name="phone" type="tel" required maxLength={30} />
+              <input name="phone" type="tel" required maxLength={30} defaultValue={store.phone} />
             </label>
           </div>
           <label>
@@ -247,6 +253,7 @@ export function SellerOnboarding({
               required
               maxLength={2000}
               placeholder="Votre univers, vos collections et votre engagement…"
+              defaultValue={store.description}
             />
           </label>
           <div className="field-row">
@@ -322,7 +329,7 @@ export function SellerOnboarding({
             </label>
           </div>
           <Button
-            disabled={busy || uploading || !logo || !cover}
+            disabled={busy || uploading || !logo}
             onClick={branding}
           >
             {uploading ? "Envoi des images…" : "Créer ma boutique"}

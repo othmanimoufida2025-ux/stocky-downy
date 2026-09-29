@@ -15,17 +15,17 @@ export async function GET() {
     const [products, stores, requests, audit, users] = await Promise.all([
       db.execute(
         admin
-          ? "SELECT p.id,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id ORDER BY p.name"
+          ? "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id ORDER BY p.name"
           : {
-              sql: "SELECT p.id,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE s.owner=? ORDER BY p.name",
+              sql: "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE s.owner=? ORDER BY p.name",
               args: [String(user.id)],
             },
       ),
       db.execute(
         admin
-          ? "SELECT id,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores ORDER BY name"
+          ? "SELECT id,slug,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores ORDER BY name"
           : {
-              sql: "SELECT id,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores WHERE owner=?",
+              sql: "SELECT id,slug,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores WHERE owner=?",
               args: [String(user.id)],
             },
       ),

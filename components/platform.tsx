@@ -26,6 +26,7 @@ import {
 } from "./operations";
 import { AdminDashboard } from "./admin-dashboard";
 import { SellerOnboarding } from "./seller-onboarding";
+import { STATUS_FR } from "@/lib/order-ref";
 type Product = {
   store_id: string;
   image: string;
@@ -37,6 +38,9 @@ type Product = {
   description: string;
   store: string;
   status: string;
+  slug?: string;
+  store_slug?: string;
+  condition?: string;
 };
 type Shop = {
   id: string;
@@ -47,9 +51,11 @@ type Shop = {
   logo?: string;
   cover?: string;
   governorate?: string;
+  slug?: string;
 };
 type Order = {
   id: string;
+  ref?: string;
   customer: string;
   total: number;
   status: string;
@@ -221,7 +227,7 @@ export default function Platform({
       setModal("");
       setNotice(
         action === "checkout"
-          ? `Commande enregistrée : ${result.orders.join(", ")}`
+          ? `Commande enregistrée : ${(result.refs || result.orders).join(", ")}`
           : "Enregistré.",
       );
       if (action === "checkout") updateCart({});
@@ -238,7 +244,7 @@ export default function Platform({
       <div className="announcement-bar">
         <span>Livraison dans toute la Tunisie</span>
         <strong>Mode circulaire, style durable</strong>
-        <button onClick={() => setView("tracking")}>Suivre ma commande →</button>
+        <a href="/suivi">Suivre ma commande →</a>
       </div>
       <header className="p-header">
         <div className="p-header-main">
@@ -251,35 +257,25 @@ export default function Platform({
           </label>
           <div className="p-actions">
             {data.user ? (
-              <Button variant="outline" onClick={() => setView("workspace")}><UserRound/> Ma boutique</Button>
+              <Button variant="outline" asChild><a href="/vendeur"><UserRound/> Ma boutique</a></Button>
             ) : (
-              <Button variant="outline" onClick={() => setModal("auth")}><UserRound/> Se connecter</Button>
+              <Button variant="outline" asChild><a href="/connexion"><UserRound/> Se connecter</a></Button>
             )}
-            <Button className="cart-button" onClick={() => setModal("cart")}>
+            <Button className="cart-button" asChild><a href="/panier">
               <ShoppingBag />
               <span>Panier</span>
               <b>{Object.values(cart).reduce((s, q) => s + q, 0)}</b>
-            </Button>
+            </a></Button>
             {data.user && <button className="logout-button" aria-label="Déconnexion" onClick={async()=>{if(await act({action:"logout"}))setView("catalog")}}><LogOut/></button>}
           </div>
         </div>
         <nav className="p-nav">
-          {[
-            ["catalog", "Nouveautés"],
-            ["stores", "Boutiques"],
-            ["services", "Services"],
-            ["tracking", "Suivi commande"],
-          ].map(([key, title]) => (
-            <button
-              key={key}
-              onClick={() => setView(key)}
-              aria-current={view === key ? "page" : undefined}
-            >
-              {title}
-            </button>
-          ))}
+          <a href="/collection">Nouveautés</a>
+          <a href="/boutiques">Boutiques</a>
+          <a href="/services">Services</a>
+          <a href="/suivi">Suivi commande</a>
           <span className="nav-spacer" />
-          {['Femme','Homme','Accessoires','Maison'].map(category=><button key={category} onClick={()=>{setShopFilter('');setQuery(category);setView('catalog')}}>{category}</button>)}
+          {['Femme','Homme','Accessoires','Maison'].map(category=><a key={category} href={`/collection?cat=${encodeURIComponent(category)}`}>{category}</a>)}
         </nav>
       </header>
       <main className="p-main">
@@ -312,7 +308,7 @@ export default function Platform({
                   <Button asChild size="default">
                     <a href="#collection">Explorer la collection <ArrowRight /></a>
                   </Button>
-                  <Button variant="outline" onClick={()=>setView("stores")}>Rencontrer les boutiques</Button>
+                  <Button variant="outline" asChild><a href="/boutiques">Rencontrer les boutiques</a></Button>
                 </div>
                 <div className="hero-proof">
                   <span><BadgeCheck/> Boutiques vérifiées</span>
@@ -358,13 +354,7 @@ export default function Platform({
                   )
                   .map((p) => (
                     <article className="p-card" key={p.id}>
-                      <button
-                        className="p-product-cover"
-                        onClick={() => {
-                          setSelected(p);
-                          setModal("detail");
-                        }}
-                      >
+                      <a className="p-product-cover" href={`/produit/${p.slug}`}>
                         <img
                           src={
                             p.image ||
@@ -375,20 +365,14 @@ export default function Platform({
                           alt={p.name}
                           className="h-full w-full object-cover"
                         />
-                      </button>
+                      </a>
                       <div className="p-card-body">
                         <small>
                           {p.store} · {p.category}
                         </small>
-                        <button
-                          className="p-product-title"
-                          onClick={() => {
-                            setSelected(p);
-                            setModal("detail");
-                          }}
-                        >
+                        <a className="p-product-title" href={`/produit/${p.slug}`}>
                           {p.name}
-                        </button>
+                        </a>
                         <strong>{money(p.price)}</strong>
                         <Button
                           disabled={!p.stock}
@@ -417,7 +401,7 @@ export default function Platform({
                 )}
               </div>
             )}
-            <section className="pro-banner"><div><p className="eyebrow">VOUS ÊTES PROFESSIONNEL ?</p><h2>Transformez votre stock dormant en opportunité.</h2><p>Créez votre boutique, publiez vos produits et pilotez vos commandes depuis un espace unique.</p></div><Button onClick={()=>setModal('auth')}>Créer ma boutique <ArrowRight/></Button></section>
+            <section className="pro-banner"><div><p className="eyebrow">VOUS ÊTES PROFESSIONNEL ?</p><h2>Transformez votre stock dormant en opportunité.</h2><p>Créez votre boutique, publiez vos produits et pilotez vos commandes depuis un espace unique.</p></div><Button asChild><a href="/inscription">Créer ma boutique <ArrowRight/></a></Button></section>
           </>
         )}
         {view === "stores" && (
@@ -430,16 +414,7 @@ export default function Platform({
                   <article className="store-rich" key={s.id}>
                     <div className="store-cover">{s.cover?<img src={s.cover} alt=""/>:<span>STOCKY PARTNER</span>}</div>
                     <div className="store-rich-body"><div className="store-logo">{s.logo?<img src={s.logo} alt={`Logo ${s.name}`}/>:<Store/>}</div><span className="verified-pill">✓ Boutique vérifiée</span><h2>{s.name}</h2><p>{s.description||"Une sélection responsable issue de stocks valorisés."}</p><small>{s.governorate||"Tunisie"}</small>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setQuery("");
-                        setShopFilter(s.id);
-                        setView("catalog");
-                      }}
-                    >
-                      Voir la collection
-                    </Button>
+                    <Button variant="outline" asChild><a href={`/boutique/${s.slug}`}>Voir la collection</a></Button>
                     </div>
                   </article>
                 ))}
@@ -987,7 +962,7 @@ function OrderTable({
         <tbody>
           {orders.map((o) => (
             <tr key={o.id}>
-              <td>{o.id.slice(0, 8)}</td>
+              <td>{o.ref || o.id.slice(0, 8)}</td>
               <td>{o.customer}</td>
               <td>{money(o.total)}</td>
               <td>
@@ -996,7 +971,7 @@ function OrderTable({
                   value={o.status}
                   onChange={(e) => change(o.id, e.target.value)}
                 >
-                  <option value={o.status}>{o.status}</option>
+                  <option value={o.status}>{STATUS_FR[o.status] || o.status}</option>
                   {(
                     {
                       new: ["confirmed", "cancelled"],
@@ -1006,7 +981,7 @@ function OrderTable({
                     } as Record<string, string[]>
                   )[o.status]?.map((s) => (
                     <option key={s} value={s}>
-                      {s}
+                      {STATUS_FR[s] || s}
                     </option>
                   ))}
                 </select>
