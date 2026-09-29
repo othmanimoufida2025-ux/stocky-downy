@@ -79,6 +79,11 @@ const empty: Data = {
     commission: 10,
   },
 };
+function mergeById<T extends { id: string }>(publicRows: T[], privateRows: T[]) {
+  const merged = new Map(publicRows.map((row) => [row.id, row]));
+  privateRows.forEach((row) => merged.set(row.id, row));
+  return [...merged.values()];
+}
 const money = (value: number) => `${(value / 1000).toFixed(2)} DT`;
 export default function Platform({
   initialView = "catalog",
@@ -97,10 +102,28 @@ export default function Platform({
     [selected, setSelected] = useState<Product | null>(null);
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch("/api/platform", { cache: "no-store" });
-      const body = await r.json();
-      if (!r.ok) throw Error(body.error);
-      setData(body);
+      const [catalogResponse, accountResponse, ordersResponse] = await Promise.all([
+        fetch("/api/catalog"),
+        fetch("/api/me", { cache: "no-store" }),
+        fetch("/api/orders", { cache: "no-store" }),
+      ]);
+      const [catalog, account, orders] = await Promise.all([
+        catalogResponse.json(),
+        accountResponse.json(),
+        ordersResponse.json(),
+      ]);
+      if (!catalogResponse.ok) throw Error(catalog.error);
+      if (!accountResponse.ok) throw Error(account.error);
+      if (!ordersResponse.ok) throw Error(orders.error);
+      setData({
+        ...empty,
+        ...catalog,
+        ...account,
+        ...orders,
+        config: catalog.config,
+        products: mergeById(catalog.products || [], account.products || []),
+        stores: mergeById(catalog.stores || [], account.stores || []),
+      });
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de connexion");
@@ -110,8 +133,16 @@ export default function Platform({
   }, []);
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 15000);
-    return () => clearInterval(id);
+    const onFocus = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [refresh]);
   useEffect(() => {
     if (

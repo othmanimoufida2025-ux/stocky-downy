@@ -1,6 +1,7 @@
 node_modules/
 .next/
 .env*
+!.env.example
 env.txt
 *.tsbuildinfo
 *.db
@@ -10,4 +11,3 @@ env.txt
 Enhancements/
 
 .vercel
-.env*

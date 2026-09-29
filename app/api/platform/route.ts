@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
+import { revalidateTag } from "next/cache";
 import {
   db,
   init,
@@ -12,88 +13,17 @@ import {
   registerWithOtp,
   notifyEmail,
   adminNotificationEmail,
+  createOutboxEntry,
+  processEmailOutbox,
+  normalizePhone,
 } from "@/lib/backend";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET() {
-  try {
-    await init();
-    const user = await identity();
-    const admin = user?.role === "superadmin";
-    const products = await db.execute(
-      admin
-        ? "SELECT p.*,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id"
-        : {
-            sql: "SELECT p.*,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE (p.status='active' AND s.status='active') OR s.owner=?",
-            args: [String(user?.id || "")],
-          },
-    );
-    const stores = await db.execute(
-      admin
-        ? "SELECT * FROM stocky_stores"
-        : {
-            sql: "SELECT id,name,status,description,logo,cover,governorate,CASE WHEN owner=? THEN owner ELSE '' END AS owner FROM stocky_stores WHERE status='active' OR owner=?",
-            args: [String(user?.id || ""), String(user?.id || "")],
-          },
-    );
-    const orders = user
-      ? await db.execute(
-          admin
-            ? "SELECT * FROM stocky_orders ORDER BY created DESC"
-            : {
-                sql: "SELECT o.* FROM stocky_orders o JOIN stocky_stores s ON s.id=o.store_id WHERE s.owner=? ORDER BY o.created DESC",
-                args: [String(user.id)],
-              },
-        )
-      : { rows: [] };
-    const requests = user
-      ? await db.execute(
-          admin
-            ? "SELECT * FROM stocky_requests ORDER BY created DESC"
-            : {
-                sql: "SELECT * FROM stocky_requests WHERE owner=? ORDER BY created DESC",
-                args: [String(user.id)],
-              },
-        )
-      : { rows: [] };
-    const audit = admin
-      ? await db.execute(
-          "SELECT a.*,u.email FROM stocky_audit a LEFT JOIN stocky_users u ON u.id=a.actor ORDER BY a.id DESC LIMIT 100",
-        )
-      : { rows: [] };
-    const users = admin
-      ? await db.execute(
-          "SELECT id,email,role,created FROM stocky_users ORDER BY created DESC",
-        )
-      : { rows: [] };
-    const config = await db.execute(
-      "SELECT value FROM stocky_settings WHERE id='public'",
-    );
-    return NextResponse.json(
-      {
-        user,
-        products: products.rows,
-        stores: stores.rows,
-        orders: orders.rows,
-        requests: requests.rows,
-        audit: audit.rows,
-        users: users.rows,
-        config: config.rows[0]
-          ? JSON.parse(String(config.rows[0].value))
-          : {
-              title: "Une nouvelle histoire pour chaque pièce.",
-              deliveryFee: 0,
-              commission: 10,
-            },
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } catch {
-    return NextResponse.json(
-      { error: "Connexion à la base de données indisponible." },
-      { status: 503 },
-    );
-  }
+  return NextResponse.json(
+    { error: "Utilisez /api/catalog, /api/me et /api/orders." },
+    { status: 405, headers: { Allow: "POST" } },
+  );
 }
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
@@ -148,10 +78,11 @@ export async function POST(req: NextRequest) {
     }
     const user = await identity();
     if (b.action === "track") {
+      const phone = normalizePhone(String(b.phone || ""));
       const found = (
         await db.execute({
-          sql: "SELECT id,status,total,items,created FROM stocky_orders WHERE id=? AND phone=?",
-          args: [String(b.id || ""), String(b.phone || "")],
+          sql: "SELECT id,status,total,items,created FROM stocky_orders WHERE id=? AND (phone_normalized=? OR phone=?)",
+          args: [String(b.id || ""), phone, String(b.phone || "")],
         })
       ).rows[0];
       if (!found)
@@ -171,7 +102,22 @@ export async function POST(req: NextRequest) {
       )
         throw new Error("Complétez les coordonnées de livraison et le panier.");
       const tx = await db.transaction("write");
+      let committed = false;
       try {
+        const configRow = (
+          await tx.execute(
+            "SELECT value FROM stocky_settings WHERE id='public'",
+          )
+        ).rows[0];
+        const platformConfig = configRow
+          ? JSON.parse(String(configRow.value))
+          : { deliveryFee: 0, commission: 10 };
+        const deliveryFee = Number(platformConfig.deliveryFee || 0);
+        const commissionRate = Number(platformConfig.commission || 0);
+        if (Number(b.deliveryFee || 0) !== deliveryFee)
+          throw new Error(
+            "Le tarif de livraison a changé. Rechargez votre panier avant de confirmer.",
+          );
         const grouped = new Map<
           string,
           {
@@ -190,16 +136,18 @@ export async function POST(req: NextRequest) {
             throw new Error("Quantité invalide");
           const p = (
             await tx.execute({
-              sql: "SELECT p.* FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE p.id=? AND p.status='active' AND s.status='active'",
+              sql: "SELECT p.id,p.store_id,p.name,p.price,p.stock FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE p.id=? AND p.status='active' AND s.status='active'",
               args: [String(item.id)],
             })
           ).rows[0];
           if (!p || Number(p.stock) < item.quantity)
             throw new Error("Un article du panier est indisponible.");
-          await tx.execute({
-            sql: "UPDATE stocky_products SET stock=stock-? WHERE id=?",
-            args: [item.quantity, String(p.id)],
+          const changed = await tx.execute({
+            sql: "UPDATE stocky_products SET stock=stock-? WHERE id=? AND stock>=? AND status='active'",
+            args: [item.quantity, String(p.id), item.quantity],
           });
+          if (!changed.rowsAffected)
+            throw new Error("Un article vient d’être épuisé. Rechargez le panier.");
           const lines = grouped.get(String(p.store_id)) || [];
           lines.push({
             id: String(p.id),
@@ -210,51 +158,49 @@ export async function POST(req: NextRequest) {
           grouped.set(String(p.store_id), lines);
         }
         const ids: string[] = [];
-        const createdOrders: { id: string; store: string }[] = [];
-        const configRow = (
-          await tx.execute(
-            "SELECT value FROM stocky_settings WHERE id='public'",
-          )
-        ).rows[0];
-        const deliveryFee = configRow
-          ? Number(JSON.parse(String(configRow.value)).deliveryFee || 0)
-          : 0;
-        if (Number(b.deliveryFee || 0) !== deliveryFee)
-          throw new Error(
-            "Le tarif de livraison a changé. Rechargez votre panier avant de confirmer.",
-          );
+        let queuedEmails = 0;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
         for (const [store, lines] of grouped) {
           const id = randomUUID();
           ids.push(id);
-          createdOrders.push({ id, store });
+          const subtotal = lines.reduce(
+            (sum, product) => sum + product.price * product.quantity,
+            0,
+          );
+          const deliveryMillimes = Math.round(deliveryFee * 1000);
+          const commissionAmount = Math.round(
+            (subtotal * commissionRate) / 100,
+          );
           await tx.execute({
-            sql: "INSERT INTO stocky_orders(id,store_id,customer,phone,address,items,total) VALUES(?,?,?,?,?,?,?)",
+            sql: "INSERT INTO stocky_orders(id,store_id,customer,phone,phone_normalized,address,items,subtotal,delivery_fee,commission_rate,commission_amount,total,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
             args: [
               id,
               store,
               String(b.customer).slice(0, 100),
               String(b.phone).slice(0, 30),
+              normalizePhone(String(b.phone)),
               String(b.address).slice(0, 500),
               JSON.stringify(lines),
-              lines.reduce(
-                (sum, p) => sum + p.price * p.quantity,
-                Math.round(deliveryFee * 1000),
-              ),
+              subtotal,
+              deliveryMillimes,
+              commissionRate,
+              commissionAmount,
+              subtotal + deliveryMillimes,
             ],
           });
-        }
-        await tx.commit();
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-        await Promise.all(
-          createdOrders.map(async ({ id, store }) => {
-            const owner = (
-              await db.execute({
-                sql: "SELECT u.email,s.name FROM stocky_stores s JOIN stocky_users u ON u.id=s.owner WHERE s.id=?",
-                args: [store],
-              })
-            ).rows[0];
-            if (!owner?.email) return;
-            await notifyEmail({
+          for (const line of lines)
+            await tx.execute({
+              sql: "INSERT INTO stocky_order_items(order_id,product_id,name,price,quantity) VALUES(?,?,?,?,?)",
+              args: [id, line.id, line.name, line.price, line.quantity],
+            });
+          const owner = (
+            await tx.execute({
+              sql: "SELECT u.email FROM stocky_stores s JOIN stocky_users u ON u.id=s.owner WHERE s.id=?",
+              args: [store],
+            })
+          ).rows[0];
+          if (owner?.email) {
+            const email = createOutboxEntry({
               to: String(owner.email),
               subject: `Nouvelle commande Stocky · ${id.slice(0, 8)}`,
               heading: "Vous avez une nouvelle commande",
@@ -262,11 +208,13 @@ export async function POST(req: NextRequest) {
               actionLabel: "Ouvrir mes commandes",
               actionUrl: appUrl,
             });
-          }),
-        );
+            await tx.execute(email.statement);
+            queuedEmails += 1;
+          }
+        }
         const adminEmail = adminNotificationEmail();
-        if (adminEmail)
-          await notifyEmail({
+        if (adminEmail) {
+          const email = createOutboxEntry({
             to: adminEmail,
             subject: `Stocky · ${ids.length} nouvelle(s) commande(s)`,
             heading: "Nouvelles commandes enregistrées",
@@ -274,9 +222,16 @@ export async function POST(req: NextRequest) {
             actionLabel: "Ouvrir le superadmin",
             actionUrl: `${appUrl}/superadmin`,
           });
+          await tx.execute(email.statement);
+          queuedEmails += 1;
+        }
+        await tx.commit();
+        committed = true;
+        revalidateTag("stocky-catalog");
+        await processEmailOutbox(Math.max(queuedEmails, 1));
         return NextResponse.json({ ok: true, orders: ids });
       } catch (e) {
-        await tx.rollback();
+        if (!committed) await tx.rollback();
         throw e;
       } finally {
         tx.close();
@@ -389,6 +344,7 @@ export async function POST(req: NextRequest) {
         ],
         "write",
       );
+      revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
     }
     if (b.action === "archive") {
@@ -398,6 +354,7 @@ export async function POST(req: NextRequest) {
       });
       if (!changed.rowsAffected)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
     }
     if (b.action === "orderStatus") {
@@ -422,7 +379,7 @@ export async function POST(req: NextRequest) {
       const tx = await db.transaction("write");
       try {
         const changed = await tx.execute({
-          sql: "UPDATE stocky_orders SET status=? WHERE id=? AND status=?",
+          sql: "UPDATE stocky_orders SET status=?,updated=CURRENT_TIMESTAMP WHERE id=? AND status=?",
           args: [b.status, b.id, order.status],
         });
         if (!changed.rowsAffected)
@@ -445,6 +402,7 @@ export async function POST(req: NextRequest) {
       } finally {
         tx.close();
       }
+      revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
     }
     if (b.action === "inventory") {
@@ -456,6 +414,7 @@ export async function POST(req: NextRequest) {
       });
       if (!result.rowsAffected)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
     }
     if (b.action === "seedDemo") {
@@ -483,6 +442,7 @@ export async function POST(req: NextRequest) {
         })),
         "write",
       );
+      revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
     }
     if (b.action === "store") {
@@ -605,6 +565,7 @@ export async function POST(req: NextRequest) {
         "write",
       );
     } else throw new Error("Action non reconnue.");
+    revalidateTag("stocky-catalog");
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

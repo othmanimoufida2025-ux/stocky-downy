@@ -1,61 +1,107 @@
 import { createClient } from "@libsql/client";
-import { readFileSync } from "node:fs";
 import {
   createHash,
+  createHmac,
   randomBytes,
   randomInt,
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
 import { cookies } from "next/headers";
-function config() {
-  let raw = "";
-  try {
-    raw = readFileSync("env.txt", "utf8");
-  } catch {}
-  return {
-    url: process.env.TURSO_DATABASE_URL || raw.match(/libsql:\/\/[^\s]+/)?.[0],
-    token: process.env.TURSO_AUTH_TOKEN || raw.match(/turos\s*:\s*(\S+)/i)?.[1],
-    resend: process.env.RESEND_API_KEY || raw.match(/resend\s*:\s*(\S+)/i)?.[1],
-  };
-}
-export const settings = config();
+export const settings = {
+  url: process.env.TURSO_DATABASE_URL || "file:stocky.db",
+  token: process.env.TURSO_AUTH_TOKEN,
+  resend: process.env.RESEND_API_KEY,
+};
 export const db = createClient({
-  url: settings.url || "file:stocky.db",
-  authToken: settings.url?.startsWith("file:") ? undefined : settings.token,
+  url: settings.url,
+  authToken: settings.url.startsWith("file:") ? undefined : settings.token,
 });
 let ready: Promise<unknown> | undefined;
+
+async function ensureColumn(table: string, column: string, definition: string) {
+  const info = await db.execute(`PRAGMA table_info(${table})`);
+  if (!info.rows.some((row) => String(row.name) === column))
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+async function migrateCoreSchema() {
+  await db.batch(
+    [
+      "CREATE TABLE IF NOT EXISTS stocky_users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, role TEXT NOT NULL, created TEXT DEFAULT CURRENT_TIMESTAMP)",
+      "CREATE TABLE IF NOT EXISTS stocky_sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_otps (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER DEFAULT 0, requested INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_stores (id TEXT PRIMARY KEY, owner TEXT UNIQUE NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, status TEXT DEFAULT 'pending', description TEXT DEFAULT '', logo TEXT DEFAULT '', cover TEXT DEFAULT '', address TEXT DEFAULT '', governorate TEXT DEFAULT '', whatsapp TEXT DEFAULT '')",
+      "CREATE TABLE IF NOT EXISTS stocky_products (id TEXT PRIMARY KEY, store_id TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, stock INTEGER NOT NULL, category TEXT NOT NULL, description TEXT NOT NULL, image TEXT, status TEXT DEFAULT 'pending', demo INTEGER DEFAULT 0)",
+      "CREATE TABLE IF NOT EXISTS stocky_orders (id TEXT PRIMARY KEY, store_id TEXT NOT NULL, customer TEXT NOT NULL, phone TEXT NOT NULL, phone_normalized TEXT DEFAULT '', address TEXT NOT NULL, items TEXT NOT NULL, subtotal INTEGER, delivery_fee INTEGER, commission_rate REAL, commission_amount INTEGER, total INTEGER NOT NULL, status TEXT DEFAULT 'new', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT)",
+      "CREATE TABLE IF NOT EXISTS stocky_order_items (order_id TEXT NOT NULL, product_id TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL, PRIMARY KEY(order_id,product_id))",
+      "CREATE TABLE IF NOT EXISTS stocky_email_outbox (id TEXT PRIMARY KEY, to_email TEXT NOT NULL, template TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL, created INTEGER NOT NULL, last_error TEXT DEFAULT '')",
+      "CREATE TABLE IF NOT EXISTS stocky_email_suppressions (email TEXT PRIMARY KEY, reason TEXT NOT NULL, created INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, entity TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)",
+      "CREATE TABLE IF NOT EXISTS stocky_pin_attempts (id TEXT PRIMARY KEY, count INTEGER NOT NULL, started INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_passwords (user_id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_settings (id TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS stocky_requests (id TEXT PRIMARY KEY, owner TEXT NOT NULL, type TEXT NOT NULL, message TEXT NOT NULL, status TEXT DEFAULT 'new', reply TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)",
+      "CREATE TABLE IF NOT EXISTS stocky_media (id TEXT PRIMARY KEY, owner TEXT NOT NULL, mime TEXT NOT NULL, data BLOB NOT NULL)",
+    ],
+    "write",
+  );
+  for (const [table, column, definition] of [
+    ["stocky_stores", "description", "TEXT DEFAULT ''"],
+    ["stocky_stores", "logo", "TEXT DEFAULT ''"],
+    ["stocky_stores", "cover", "TEXT DEFAULT ''"],
+    ["stocky_stores", "address", "TEXT DEFAULT ''"],
+    ["stocky_stores", "governorate", "TEXT DEFAULT ''"],
+    ["stocky_stores", "whatsapp", "TEXT DEFAULT ''"],
+    ["stocky_orders", "phone_normalized", "TEXT DEFAULT ''"],
+    ["stocky_orders", "subtotal", "INTEGER"],
+    ["stocky_orders", "delivery_fee", "INTEGER"],
+    ["stocky_orders", "commission_rate", "REAL"],
+    ["stocky_orders", "commission_amount", "INTEGER"],
+    ["stocky_orders", "updated", "TEXT"],
+  ] as const)
+    await ensureColumn(table, column, definition);
+  await db.batch(
+    [
+      "CREATE INDEX IF NOT EXISTS idx_products_store_status ON stocky_products(store_id,status)",
+      "CREATE INDEX IF NOT EXISTS idx_products_status_cat ON stocky_products(status,category)",
+      "CREATE INDEX IF NOT EXISTS idx_orders_store_created ON stocky_orders(store_id,created DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_orders_phone ON stocky_orders(phone_normalized)",
+      "CREATE INDEX IF NOT EXISTS idx_sessions_user ON stocky_sessions(user_id)",
+      "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON stocky_sessions(expires)",
+      "CREATE INDEX IF NOT EXISTS idx_requests_owner ON stocky_requests(owner)",
+      "CREATE INDEX IF NOT EXISTS idx_audit_created ON stocky_audit(created)",
+      "CREATE INDEX IF NOT EXISTS idx_outbox_pending ON stocky_email_outbox(status,next_attempt)",
+      "CREATE INDEX IF NOT EXISTS idx_order_items_product ON stocky_order_items(product_id)",
+      "UPDATE stocky_orders SET subtotal=COALESCE(subtotal,total),delivery_fee=COALESCE(delivery_fee,0),commission_rate=COALESCE(commission_rate,0),commission_amount=COALESCE(commission_amount,0),updated=COALESCE(updated,created)",
+    ],
+    "write",
+  );
+  const orders = await db.execute(
+    "SELECT id,phone FROM stocky_orders WHERE phone_normalized IS NULL OR phone_normalized=''",
+  );
+  for (const order of orders.rows)
+    await db.execute({
+      sql: "UPDATE stocky_orders SET phone_normalized=? WHERE id=?",
+      args: [normalizePhone(String(order.phone)), String(order.id)],
+    });
+}
+
 export function init() {
   return (ready ||= (async () => {
-    await db.batch(
-      [
-        "CREATE TABLE IF NOT EXISTS stocky_users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, role TEXT NOT NULL, created TEXT DEFAULT CURRENT_TIMESTAMP)",
-        "CREATE TABLE IF NOT EXISTS stocky_sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS stocky_otps (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER DEFAULT 0, requested INTEGER NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS stocky_stores (id TEXT PRIMARY KEY, owner TEXT UNIQUE NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, status TEXT DEFAULT 'pending')",
-        "CREATE TABLE IF NOT EXISTS stocky_products (id TEXT PRIMARY KEY, store_id TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, stock INTEGER NOT NULL, category TEXT NOT NULL, description TEXT NOT NULL, image TEXT, status TEXT DEFAULT 'pending', demo INTEGER DEFAULT 0)",
-        "CREATE TABLE IF NOT EXISTS stocky_orders (id TEXT PRIMARY KEY, store_id TEXT NOT NULL, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, items TEXT NOT NULL, total INTEGER NOT NULL, status TEXT DEFAULT 'new', created TEXT DEFAULT CURRENT_TIMESTAMP)",
-        "CREATE TABLE IF NOT EXISTS stocky_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, entity TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)",
-        "CREATE TABLE IF NOT EXISTS stocky_pin_attempts (id TEXT PRIMARY KEY, count INTEGER NOT NULL, started INTEGER NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS stocky_passwords (user_id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS stocky_settings (id TEXT PRIMARY KEY, value TEXT NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS stocky_requests (id TEXT PRIMARY KEY, owner TEXT NOT NULL, type TEXT NOT NULL, message TEXT NOT NULL, status TEXT DEFAULT 'new', reply TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)",
-      ],
-      "write",
+    await db.execute(
+      "CREATE TABLE IF NOT EXISTS stocky_schema_migrations (id TEXT PRIMARY KEY, applied INTEGER NOT NULL)",
     );
-    for (const sql of [
-      "ALTER TABLE stocky_stores ADD COLUMN description TEXT DEFAULT ''",
-      "ALTER TABLE stocky_stores ADD COLUMN logo TEXT DEFAULT ''",
-      "ALTER TABLE stocky_stores ADD COLUMN cover TEXT DEFAULT ''",
-      "ALTER TABLE stocky_stores ADD COLUMN address TEXT DEFAULT ''",
-      "ALTER TABLE stocky_stores ADD COLUMN governorate TEXT DEFAULT ''",
-      "ALTER TABLE stocky_stores ADD COLUMN whatsapp TEXT DEFAULT ''",
-    ]) {
-      try {
-        await db.execute(sql);
-      } catch (e) {
-        if (!String(e).toLowerCase().includes("duplicate column")) throw e;
-      }
+    const applied = await db.execute({
+      sql: "SELECT id FROM stocky_schema_migrations WHERE id=?",
+      args: ["001-core-schema"],
+    });
+    if (!applied.rows.length) {
+      await migrateCoreSchema();
+      await db.execute({
+        sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
+        args: ["001-core-schema", Date.now()],
+      });
     }
   })().catch((e) => {
     ready = undefined;
@@ -63,8 +109,18 @@ export function init() {
   }));
 }
 export const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+export function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("216") && digits.length > 8 ? digits.slice(3) : digits;
+}
 
-type EmailMessage = {
+function otpHash(email: string, code: string) {
+  const secret = process.env.OTP_SECRET || process.env.SUPERADMIN_PIN_HASH;
+  if (!secret) throw new Error("OTP_SECRET n’est pas configuré.");
+  return createHmac("sha256", secret).update(`${email}:${code}`).digest("hex");
+}
+
+export type EmailMessage = {
   to: string | string[];
   subject: string;
   heading: string;
@@ -73,14 +129,21 @@ type EmailMessage = {
   actionUrl?: string;
 };
 
-export async function sendEmail(message: EmailMessage) {
+export async function sendEmail(message: EmailMessage, idempotencyKey?: string) {
   if (!settings.resend)
     throw new Error("Le service de vérification e-mail n’est pas configuré.");
   const recipients = (Array.isArray(message.to) ? message.to : [message.to])
     .map((email) => email.trim().toLowerCase())
     .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
   if (!recipients.length) throw new Error("Destinataire e-mail invalide.");
-  const from = process.env.RESEND_FROM || "Stocky <onboarding@resend.dev>";
+  const suppressed = await db.execute({
+    sql: `SELECT email FROM stocky_email_suppressions WHERE email IN (${recipients.map(() => "?").join(",")}) LIMIT 1`,
+    args: recipients,
+  });
+  if (suppressed.rows.length)
+    throw new Error("Envoi bloqué pour une adresse e-mail en suppression.");
+  const from = process.env.RESEND_FROM;
+  if (!from) throw new Error("RESEND_FROM n’est pas configuré.");
   const action =
     message.actionLabel && message.actionUrl
       ? `<p style="margin:28px 0"><a href="${message.actionUrl}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#7d242c;color:#fff;text-decoration:none;font-weight:700">${message.actionLabel}</a></p>`
@@ -91,6 +154,7 @@ export async function sendEmail(message: EmailMessage) {
     headers: {
       Authorization: `Bearer ${settings.resend}`,
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify({
       from,
@@ -107,10 +171,77 @@ export async function sendEmail(message: EmailMessage) {
   return response.json();
 }
 
+export function createOutboxEntry(message: EmailMessage) {
+  const id = randomBytes(16).toString("hex");
+  const recipients = (Array.isArray(message.to) ? message.to : [message.to])
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  return {
+    id,
+    statement: {
+      sql: "INSERT INTO stocky_email_outbox(id,to_email,template,payload,next_attempt,created) VALUES(?,?,?,?,?,?)",
+      args: [
+        id,
+        recipients.join(","),
+        message.subject.slice(0, 160),
+        JSON.stringify(message),
+        Date.now(),
+        Date.now(),
+      ],
+    },
+  };
+}
+
+async function deliverOutbox(id: string) {
+  const row = (
+    await db.execute({
+      sql: "SELECT * FROM stocky_email_outbox WHERE id=? AND status='pending'",
+      args: [id],
+    })
+  ).rows[0];
+  if (!row) return true;
+  try {
+    await sendEmail(JSON.parse(String(row.payload)), `stocky/${id}`);
+    await db.execute({
+      sql: "UPDATE stocky_email_outbox SET status='sent',last_error='' WHERE id=?",
+      args: [id],
+    });
+    return true;
+  } catch (error) {
+    const attempts = Number(row.attempts) + 1;
+    const delay = Math.min(86400000, 60000 * 2 ** Math.min(attempts, 10));
+    await db.execute({
+      sql: "UPDATE stocky_email_outbox SET status=?,attempts=?,next_attempt=?,last_error=? WHERE id=?",
+      args: [
+        attempts >= 8 ? "failed" : "pending",
+        attempts,
+        Date.now() + delay,
+        String(error).slice(0, 500),
+        id,
+      ],
+    });
+    return false;
+  }
+}
+
+export async function processEmailOutbox(limit = 20) {
+  await init();
+  const pending = await db.execute({
+    sql: "SELECT id FROM stocky_email_outbox WHERE status='pending' AND next_attempt<=? ORDER BY created LIMIT ?",
+    args: [Date.now(), Math.max(1, Math.min(limit, 100))],
+  });
+  let sent = 0;
+  for (const row of pending.rows)
+    if (await deliverOutbox(String(row.id))) sent += 1;
+  return { processed: pending.rows.length, sent };
+}
+
 export async function notifyEmail(message: EmailMessage) {
   try {
-    await sendEmail(message);
-    return true;
+    await init();
+    const entry = createOutboxEntry(message);
+    await db.execute(entry.statement);
+    return await deliverOutbox(entry.id);
   } catch (error) {
     console.error("Stocky notification email failed", error);
     return false;
@@ -123,6 +254,28 @@ export function adminNotificationEmail() {
     (process.env.SUPERADMIN_EMAILS || "").split(",")[0]?.trim() ||
     ""
   );
+}
+
+export async function runMaintenance() {
+  await init();
+  const now = Date.now();
+  const [sessions, otps, attempts] = await Promise.all([
+    db.execute({ sql: "DELETE FROM stocky_sessions WHERE expires<?", args: [now] }),
+    db.execute({ sql: "DELETE FROM stocky_otps WHERE expires<?", args: [now] }),
+    db.execute({
+      sql: "DELETE FROM stocky_pin_attempts WHERE started<?",
+      args: [now - 900000],
+    }),
+  ]);
+  const outbox = await processEmailOutbox(50);
+  return {
+    deleted: {
+      sessions: sessions.rowsAffected,
+      otps: otps.rowsAffected,
+      attempts: attempts.rowsAffected,
+    },
+    outbox,
+  };
 }
 export async function passwordLogin(
   email: string,
@@ -288,7 +441,7 @@ export async function requestOtp(email: string) {
   const otp = String(randomInt(100000, 1000000));
   await db.execute({
     sql: "INSERT OR REPLACE INTO stocky_otps(email,hash,expires,requested,attempts) VALUES(?,?,?,?,0)",
-    args: [email, hash(email + otp), now + 600000, now],
+    args: [email, otpHash(email, otp), now + 600000, now],
   });
   try {
     await sendEmail({
@@ -336,10 +489,11 @@ async function consumeOtp(email: string, code: string) {
     sql: "UPDATE stocky_otps SET attempts=attempts+1 WHERE email=?",
     args: [email],
   });
-  if (otp.hash !== hash(email + code)) throw new Error("Code incorrect.");
+  const candidate = otpHash(email, code);
+  if (otp.hash !== candidate) throw new Error("Code incorrect.");
   const removed = await db.execute({
     sql: "DELETE FROM stocky_otps WHERE email=? AND hash=?",
-    args: [email, hash(email + code)],
+    args: [email, candidate],
   });
   if (!removed.rowsAffected) throw new Error("Code déjà utilisé.");
 }
