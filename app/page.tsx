@@ -1,2 +1,15 @@
-import Platform from '@/components/platform';
-export default function Page() { return <Platform />; }
+import Link from "next/link";
+import { ArrowRight, BadgeCheck, Heart, ShieldCheck, Sparkles, Store, Truck } from "lucide-react";
+import { StorefrontShell } from "@/components/storefront-shell";
+import { ProductCard } from "@/components/product-card";
+import { publicProducts, publicShops } from "@/lib/storefront";
+
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [products, shops] = await Promise.all([publicProducts(), publicShops()]);
+  const featured = products.slice(0, 8);
+  const hero = products.find((product) => product.image) || products[0];
+  const image = hero?.image || "/demo-fashion.svg";
+  return <StorefrontShell><main><section className="home-hero"><div className="home-copy"><span><Sparkles /> Sélection responsable · Tunisie</span><h1>Le style continue.<br />Les pièces aussi.</h1><p>Découvrez des pièces choisies auprès de boutiques tunisiennes vérifiées. Moins de gaspillage, plus de caractère.</p><div className="home-actions"><Link href="/collection">Explorer la collection <ArrowRight /></Link><Link href="/boutiques">Rencontrer les boutiques</Link></div><div className="home-proof"><span><BadgeCheck /> Boutiques vérifiées</span><span><ShieldCheck /> Achat serein</span></div></div><Link href={hero ? `/produit/${hero.slug}` : "/collection"} className="home-visual"><img src={image} alt={hero?.name || "Collection Stocky Downy"} /><div><span>Pièce choisie</span><strong>{hero?.name || "La collection arrive"}</strong></div></Link></section><section className="home-metrics"><div><BadgeCheck /><strong>{shops.length}+</strong><span>Boutiques vérifiées</span></div><div><Sparkles /><strong>{products.length}+</strong><span>Pièces disponibles</span></div><div><Heart /><strong>100%</strong><span>Mode responsable</span></div><div><Truck /><strong>24</strong><span>Gouvernorats livrés</span></div></section><section className="home-section"><div className="section-title"><div><span>Choisir autrement</span><h2>Explorer selon votre envie</h2></div><Link href="/collection">Toute la collection <ArrowRight /></Link></div><div className="home-categories">{["Femme","Homme","Accessoires","Maison"].map((category, index) => { const item = products.find(product => product.category === category); return <Link href={`/collection?cat=${encodeURIComponent(category)}`} key={category}><div className={`category-arch arch-${index + 1}`}>{item ? <img src={item.image || (category === "Accessoires" ? "/demo-bag.svg" : "/demo-fashion.svg")} alt="" /> : <Store />}</div><strong>{category}</strong><span>Découvrir <ArrowRight /></span></Link>; })}</div></section><section className="home-section"><div className="section-title"><div><span>Sélection circulaire</span><h2>Les pièces du moment</h2></div><Link href="/collection">Voir tout <ArrowRight /></Link></div>{featured.length ? <div className="sf-grid">{featured.map(product => <ProductCard product={product} key={product.id} />)}</div> : <div className="sf-empty"><h2>La collection se prépare.</h2><p>Les pièces apparaîtront après validation des boutiques.</p></div>}</section><section className="home-seller"><div><span>Vous êtes professionnel ?</span><h2>Transformez votre stock dormant en opportunité.</h2><p>Créez votre boutique, publiez vos produits et pilotez vos commandes depuis un espace simple et cohérent.</p></div><Link href="/inscription">Créer ma boutique <ArrowRight /></Link></section></main></StorefrontShell>;
+}
