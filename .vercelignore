@@ -3,6 +3,7 @@ env.txt
 stocky-test.db*
 .next-test
 .vercel-cache
+Enhancements
 scripts/integration.mjs
 server.js
 index.html
