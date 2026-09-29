@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env*
+env.txt
+*.tsbuildinfo
+*.db
+*.db-*
+.next-test/
+.vercel-cache/
+
+.vercel
+.env*

@@ -1,0 +1,10 @@
+env.txt
+.env*
+stocky-test.db*
+.next-test
+.vercel-cache
+scripts/integration.mjs
+server.js
+index.html
+app.js
+styles.css
