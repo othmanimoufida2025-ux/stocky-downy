@@ -1,4 +1,5 @@
 import { createClient } from "@libsql/client";
+import nodemailer from "nodemailer";
 import {
   createHash,
   createHmac,
@@ -14,7 +15,16 @@ export const settings = {
   url: process.env.TURSO_DATABASE_URL || "file:stocky.db",
   token: process.env.TURSO_AUTH_TOKEN,
   resend: process.env.RESEND_API_KEY,
+  smtp: {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.SMTP_FROM || (process.env.SMTP_USER ? `Stocky <${process.env.SMTP_USER}>` : undefined),
+  },
 };
+export const hasEmailConfig = () =>
+  Boolean((settings.smtp.host && settings.smtp.user && settings.smtp.pass) || settings.resend);
 export const db = createClient({
   url: settings.url,
   authToken: settings.url.startsWith("file:") ? undefined : settings.token,
@@ -30,7 +40,7 @@ async function ensureColumn(table: string, column: string, definition: string) {
 async function migrateCoreSchema() {
   await db.batch(
     [
-      "CREATE TABLE IF NOT EXISTS stocky_users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, role TEXT NOT NULL, created TEXT DEFAULT CURRENT_TIMESTAMP)",
+      "CREATE TABLE IF NOT EXISTS stocky_users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, role TEXT NOT NULL, nom TEXT DEFAULT '', prenom TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)",
       "CREATE TABLE IF NOT EXISTS stocky_sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS stocky_otps (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER DEFAULT 0, requested INTEGER NOT NULL)",
       "CREATE TABLE IF NOT EXISTS stocky_stores (id TEXT PRIMARY KEY, owner TEXT UNIQUE NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, status TEXT DEFAULT 'pending', description TEXT DEFAULT '', logo TEXT DEFAULT '', cover TEXT DEFAULT '', address TEXT DEFAULT '', governorate TEXT DEFAULT '', whatsapp TEXT DEFAULT '')",
@@ -49,6 +59,8 @@ async function migrateCoreSchema() {
     "write",
   );
   for (const [table, column, definition] of [
+    ["stocky_users", "nom", "TEXT DEFAULT ''"],
+    ["stocky_users", "prenom", "TEXT DEFAULT ''"],
     ["stocky_stores", "description", "TEXT DEFAULT ''"],
     ["stocky_stores", "logo", "TEXT DEFAULT ''"],
     ["stocky_stores", "cover", "TEXT DEFAULT ''"],
@@ -165,6 +177,18 @@ export function init() {
         args: ["002-routed-storefront", Date.now()],
       });
     }
+    const userNames = await db.execute({
+      sql: "SELECT id FROM stocky_schema_migrations WHERE id=?",
+      args: ["003-user-names"],
+    });
+    if (!userNames.rows.length) {
+      await ensureColumn("stocky_users", "nom", "TEXT DEFAULT ''");
+      await ensureColumn("stocky_users", "prenom", "TEXT DEFAULT ''");
+      await db.execute({
+        sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
+        args: ["003-user-names", Date.now()],
+      });
+    }
   })().catch((e) => {
     ready = undefined;
     throw e;
@@ -192,7 +216,7 @@ export type EmailMessage = {
 };
 
 export async function sendEmail(message: EmailMessage, idempotencyKey?: string) {
-  if (!settings.resend)
+  if (!hasEmailConfig())
     throw new Error("Le service de vérification e-mail n’est pas configuré.");
   const recipients = (Array.isArray(message.to) ? message.to : [message.to])
     .map((email) => email.trim().toLowerCase())
@@ -204,33 +228,60 @@ export async function sendEmail(message: EmailMessage, idempotencyKey?: string) 
   });
   if (suppressed.rows.length)
     throw new Error("Envoi bloqué pour une adresse e-mail en suppression.");
-  const from = process.env.RESEND_FROM;
-  if (!from) throw new Error("RESEND_FROM n’est pas configuré.");
+  const from =
+    process.env.SMTP_FROM ||
+    (process.env.SMTP_USER ? `Stocky <${process.env.SMTP_USER}>` : undefined) ||
+    process.env.RESEND_FROM ||
+    "Stocky <wetraincontact10@gmail.com>";
   const action =
     message.actionLabel && message.actionUrl
       ? `<p style="margin:28px 0"><a href="${message.actionUrl}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#7d242c;color:#fff;text-decoration:none;font-weight:700">${message.actionLabel}</a></p>`
       : "";
   const html = `<!doctype html><html lang="fr"><body style="margin:0;background:#f7f4f1;font-family:Arial,sans-serif;color:#282220"><div style="max-width:600px;margin:32px auto;padding:0 18px"><div style="padding:18px 24px;border-radius:12px 12px 0 0;background:#211918;color:#ffbd59;font-size:22px;font-weight:800">STOCKY</div><div style="padding:32px 24px;border:1px solid #e6ded8;border-top:0;border-radius:0 0 12px 12px;background:#fff"><h1 style="margin:0 0 16px;font-size:24px;color:#57191e">${message.heading}</h1><p style="margin:0;line-height:1.7;color:#625853">${message.body}</p>${action}<p style="margin:30px 0 0;padding-top:18px;border-top:1px solid #eee5df;color:#958984;font-size:12px">Stocky Downy · Mode circulaire en Tunisie</p></div></div></body></html>`;
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${settings.resend}`,
-      "Content-Type": "application/json",
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
-    },
-    body: JSON.stringify({
+  const text = `${message.heading}\n\n${message.body}${message.actionUrl ? `\n\n${message.actionUrl}` : ""}`;
+
+  if (settings.smtp.host && settings.smtp.user && settings.smtp.pass) {
+    const transporter = nodemailer.createTransport({
+      host: settings.smtp.host,
+      port: settings.smtp.port,
+      secure: settings.smtp.port === 465,
+      auth: {
+        user: settings.smtp.user,
+        pass: settings.smtp.pass,
+      },
+    });
+    const info = await transporter.sendMail({
       from,
-      to: recipients,
+      to: recipients.join(", "),
       subject: message.subject,
+      text,
       html,
-      text: `${message.heading}\n\n${message.body}${message.actionUrl ? `\n\n${message.actionUrl}` : ""}`,
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Resend refuse l’envoi (${response.status}): ${detail.slice(0, 240)}`);
+    });
+    return { id: info.messageId };
   }
-  return response.json();
+
+  if (settings.resend) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.resend}`,
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject: message.subject,
+        html,
+        text,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Resend refuse l’envoi (${response.status}): ${detail.slice(0, 240)}`);
+    }
+    return response.json();
+  }
 }
 
 export function createOutboxEntry(message: EmailMessage) {
@@ -498,7 +549,7 @@ export async function requestOtp(email: string) {
   });
   if (previous.rows[0] && now - Number(previous.rows[0].requested) < 60000)
     throw new Error("Veuillez patienter une minute avant de réessayer.");
-  if (!settings.resend)
+  if (!hasEmailConfig())
     throw new Error("Le service de vérification e-mail n’est pas configuré.");
   const otp = String(randomInt(100000, 1000000));
   await db.execute({
@@ -517,7 +568,7 @@ export async function requestOtp(email: string) {
     throw error;
   }
 }
-export async function verifyOtp(email: string, code: string) {
+export async function verifyOtp(email: string, code: string, nom = "", prenom = "") {
   await init();
   await consumeOtp(email, code);
   const id = randomBytes(16).toString("hex");
@@ -526,8 +577,8 @@ export async function verifyOtp(email: string, code: string) {
     .map((x) => x.trim().toLowerCase())
     .filter(Boolean);
   await db.execute({
-    sql: "INSERT INTO stocky_users(id,email,role) VALUES(?,?,?) ON CONFLICT(email) DO UPDATE SET role=excluded.role",
-    args: [id, email, adminEmails.includes(email) ? "superadmin" : "seller"],
+    sql: "INSERT INTO stocky_users(id,email,role,nom,prenom) VALUES(?,?,?,?,?) ON CONFLICT(email) DO UPDATE SET role=excluded.role, nom=CASE WHEN excluded.nom='' THEN nom ELSE excluded.nom END, prenom=CASE WHEN excluded.prenom='' THEN prenom ELSE excluded.prenom END",
+    args: [id, email, adminEmails.includes(email) ? "superadmin" : "seller", nom, prenom],
   });
   const user = (
     await db.execute({
@@ -580,6 +631,8 @@ export async function registerWithOtp(
   password: string,
   code: string,
   role: "seller" | "buyer" = "seller",
+  nom: string = "",
+  prenom: string = "",
 ) {
   await init();
   if (password.length < 10 || password.length > 128)
@@ -598,8 +651,8 @@ export async function registerWithOtp(
   await db.batch(
     [
       {
-        sql: "INSERT INTO stocky_users(id,email,role) VALUES(?,?,?)",
-        args: [id, email, role],
+        sql: "INSERT INTO stocky_users(id,email,role,nom,prenom) VALUES(?,?,?,?,?)",
+        args: [id, email, role, nom, prenom],
       },
       {
         sql: "INSERT INTO stocky_passwords(user_id,salt,hash) VALUES(?,?,?)",
@@ -659,4 +712,20 @@ export async function resetPasswordWithOtp(
     args: [String(user.id)],
   });
   await createSession(String(user.id), 604800000);
+}
+
+
+export async function setUserPassword(userId: string, password: string) {
+  await init();
+  if (password.length < 6 || password.length > 128)
+    throw new Error("Le mot de passe doit contenir entre 6 et 128 caractères.");
+  const salt = randomBytes(16).toString("hex");
+  await db.execute({
+    sql: "INSERT INTO stocky_passwords(user_id,salt,hash) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET salt=excluded.salt,hash=excluded.hash",
+    args: [userId, salt, scryptSync(password, salt, 64).toString("hex")],
+  });
+  await db.execute({
+    sql: "DELETE FROM stocky_sessions WHERE user_id=?",
+    args: [userId],
+  });
 }

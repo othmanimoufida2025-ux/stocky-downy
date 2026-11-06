@@ -8,7 +8,8 @@ import {
   Store,
   Package,
   LogOut,
-  MessageCircle,
+  Facebook,
+  Instagram,
   Search,
   BadgeCheck,
   Heart,
@@ -29,7 +30,7 @@ import { SellerOnboarding } from "./seller-onboarding";
 import { STATUS_FR } from "@/lib/order-ref";
 type Product = {
   store_id: string;
-  image: string;
+  image?: string;
   id: string;
   name: string;
   price: number;
@@ -41,6 +42,7 @@ type Product = {
   slug?: string;
   store_slug?: string;
   condition?: string;
+  demo?: number;
 };
 type Shop = {
   id: string;
@@ -52,6 +54,11 @@ type Shop = {
   cover?: string;
   governorate?: string;
   slug?: string;
+  phone?: string;
+  address?: string;
+  whatsapp?: string;
+  owner_email?: string;
+  product_count?: number;
 };
 type Order = {
   id: string;
@@ -143,13 +150,27 @@ export default function Platform({
     const onVisibility = () => {
       if (document.visibilityState === "visible") refresh();
     };
+    const onPageShow = (e: PageTransitionEvent) => {
+      refresh();
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, [refresh]);
+  useEffect(() => {
+    if (!loading && !data.user) {
+      if (initialView === "admin" || view === "admin") {
+        window.location.replace("/superadmin");
+      } else if (initialView === "workspace" || view === "workspace") {
+        window.location.replace("/connexion");
+      }
+    }
+  }, [loading, data.user, initialView, view]);
   useEffect(() => {
     if (
       data.user?.role === "superadmin" &&
@@ -266,7 +287,20 @@ export default function Platform({
               <span>Panier</span>
               <b>{Object.values(cart).reduce((s, q) => s + q, 0)}</b>
             </a></Button>
-            {data.user && <button className="logout-button" aria-label="Déconnexion" onClick={async()=>{if(await act({action:"logout"}))setView("catalog")}}><LogOut/></button>}
+            {data.user && (
+              <button
+                className="logout-button"
+                aria-label="Déconnexion"
+                title="Se déconnecter"
+                onClick={async () => {
+                  await act({ action: "logout" });
+                  try { sessionStorage.clear(); } catch {}
+                  window.location.replace("/");
+                }}
+              >
+                <LogOut />
+              </button>
+            )}
           </div>
         </div>
         <nav className="p-nav">
@@ -573,9 +607,24 @@ export default function Platform({
       </main>
       <footer className="p-footer">
         <span>Stocky Downy · Du stock dormant au style circulaire.</span>
-        <a href="https://wa.me/21626107128" target="_blank" rel="noreferrer">
-          developpé par chafik dridi <MessageCircle size={18} /> +21626107128
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <a
+            href="https://www.facebook.com/profile.php?id=61594223823361&locale=fr_FR"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >
+            <Facebook size={18} />
+          </a>
+          <a
+            href="https://www.instagram.com/stockydown/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >
+            <Instagram size={18} />
+          </a>
+        </div>
       </footer>
       <Dialog.Root
         open={!!modal}

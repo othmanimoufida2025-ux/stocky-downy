@@ -15,15 +15,15 @@ export async function GET() {
     const [products, stores, requests, audit, users] = await Promise.all([
       db.execute(
         admin
-          ? "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id ORDER BY p.name"
+          ? "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store,s.slug AS store_slug FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id ORDER BY p.name"
           : {
-              sql: "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE s.owner=? ORDER BY p.name",
+              sql: "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store,s.slug AS store_slug FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id WHERE s.owner=? ORDER BY p.name",
               args: [String(user.id)],
             },
       ),
       db.execute(
         admin
-          ? "SELECT id,slug,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores ORDER BY name"
+          ? "SELECT s.id,s.slug,s.owner,s.name,s.phone,s.status,s.description,s.logo,s.cover,s.address,s.governorate,s.whatsapp,u.email AS owner_email, (SELECT COUNT(*) FROM stocky_products WHERE store_id=s.id) AS product_count FROM stocky_stores s LEFT JOIN stocky_users u ON u.id=s.owner ORDER BY s.name"
           : {
               sql: "SELECT id,slug,owner,name,phone,status,description,logo,cover,address,governorate,whatsapp FROM stocky_stores WHERE owner=?",
               args: [String(user.id)],
@@ -43,7 +43,9 @@ export async function GET() {
           )
         : Promise.resolve({ rows: [] }),
       admin
-        ? db.execute("SELECT id,email,role,created FROM stocky_users ORDER BY created DESC")
+        ? db.execute(
+            "SELECT u.id,u.email,u.role,u.nom,u.prenom,u.created,s.id AS store_id,s.name AS store_name,s.slug AS store_slug FROM stocky_users u LEFT JOIN stocky_stores s ON s.owner=u.id ORDER BY u.created DESC",
+          )
         : Promise.resolve({ rows: [] }),
     ]);
     return NextResponse.json(

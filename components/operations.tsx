@@ -16,7 +16,7 @@ export type Configuration = {
 };
 export type OperationsData = {
   requests: ServiceRequest[];
-  users: { id: string; email: string; role: string; created: string }[];
+  users: { id: string; email: string; role: string; created: string; store_id?: string; store_name?: string; store_slug?: string; nom?: string; prenom?: string }[];
   audit: {
     id: number;
     email: string;

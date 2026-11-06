@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageCircle, UserRound } from "lucide-react";
+import { Facebook, Instagram, UserRound } from "lucide-react";
 import { CartButton } from "@/components/cart-button";
 
 export function StorefrontHeader() {
@@ -7,7 +7,38 @@ export function StorefrontHeader() {
 }
 
 export function StorefrontFooter() {
-  return <footer className="sf-footer"><div><img src="/stocky-logo.svg" alt="Stocky Downy" /><p>Le style continue. Les pièces aussi.</p></div><nav><Link href="/collection">Collection</Link><Link href="/boutiques">Boutiques</Link><Link href="/vendeur/demarrage">Vendre sur Stocky</Link><Link href="/suivi">Suivi de commande</Link></nav><a href="https://wa.me/21626107128" target="_blank" rel="noreferrer">développé par chafik dridi <MessageCircle /> +21626107128</a></footer>;
+  return (
+    <footer className="sf-footer">
+      <div>
+        <img src="/stocky-logo.svg" alt="Stocky Downy" />
+        <p>Le style continue. Les pièces aussi.</p>
+      </div>
+      <nav>
+        <Link href="/collection">Collection</Link>
+        <Link href="/boutiques">Boutiques</Link>
+        <Link href="/vendeur/demarrage">Vendre sur Stocky</Link>
+        <Link href="/suivi">Suivi de commande</Link>
+      </nav>
+      <div className="sf-footer-socials">
+        <a
+          href="https://www.facebook.com/profile.php?id=61594223823361&locale=fr_FR"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Facebook"
+        >
+          <Facebook />
+        </a>
+        <a
+          href="https://www.instagram.com/stockydown/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Instagram"
+        >
+          <Instagram />
+        </a>
+      </div>
+    </footer>
+  );
 }
 
 export function StorefrontShell({ children }: { children: React.ReactNode }) {

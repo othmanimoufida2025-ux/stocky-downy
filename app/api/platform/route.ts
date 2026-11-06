@@ -18,12 +18,32 @@ import {
   normalizePhone,
   loginWithOtp,
   resetPasswordWithOtp,
+  setUserPassword,
 } from "@/lib/backend";
 import { entitySlug } from "@/lib/slug";
 import { orderRef } from "@/lib/order-ref";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get("action") === "logout") {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("stocky_session")?.value;
+    if (token) {
+      await db.execute({
+        sql: "DELETE FROM stocky_sessions WHERE hash=?",
+        args: [hash(token)],
+      });
+    }
+    cookieStore.set("stocky_session", "", {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+    return NextResponse.redirect(new URL("/", req.url));
+  }
   return NextResponse.json(
     { error: "Utilisez /api/catalog, /api/me et /api/orders." },
     { status: 405, headers: { Allow: "POST" } },
@@ -78,6 +98,8 @@ export async function POST(req: NextRequest) {
         String(b.password || ""),
         String(b.code || ""),
         b.role === "buyer" ? "buyer" : "seller",
+        String(b.nom || "").trim().slice(0, 100),
+        String(b.prenom || "").trim().slice(0, 100),
       );
       return NextResponse.json({ ok: true });
     }
@@ -261,14 +283,42 @@ export async function POST(req: NextRequest) {
       }
     }
     if (b.action === "logout") {
-      const token = (await cookies()).get("stocky_session")?.value;
-      if (token)
+      const cookieStore = await cookies();
+      const token = cookieStore.get("stocky_session")?.value;
+      if (token) {
         await db.execute({
           sql: "DELETE FROM stocky_sessions WHERE hash=?",
           args: [hash(token)],
         });
-      (await cookies()).delete("stocky_session");
-      return NextResponse.json({ ok: true });
+      }
+      if (user?.id) {
+        await db.execute({
+          sql: "DELETE FROM stocky_sessions WHERE user_id=?",
+          args: [String(user.id)],
+        });
+      }
+      cookieStore.set("stocky_session", "", {
+        path: "/",
+        maxAge: 0,
+        expires: new Date(0),
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+      cookieStore.delete({
+        name: "stocky_session",
+        path: "/",
+      });
+      return NextResponse.json(
+        { ok: true },
+        {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        },
+      );
     }
     if (!user)
       return NextResponse.json(
@@ -583,6 +633,214 @@ export async function POST(req: NextRequest) {
           actionLabel: "Ouvrir mon espace",
           actionUrl: process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin,
         });
+    } else if (b.action === "adminEditUser") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const uid = String(b.id || "").trim();
+      const email = String(b.email || "").trim().toLowerCase();
+      const role = String(b.role || "seller").trim();
+      const nom = String(b.nom || "").trim().slice(0, 100);
+      const prenom = String(b.prenom || "").trim().slice(0, 100);
+      if (!uid || !email || !["customer", "seller", "superadmin"].includes(role))
+        throw new Error("Données utilisateur invalides.");
+      await db.batch(
+        [
+          {
+            sql: "UPDATE stocky_users SET email=?, role=?, nom=?, prenom=? WHERE id=?",
+            args: [email, role, nom, prenom, uid],
+          },
+          {
+            sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+            args: [String(user.id), `Modifier utilisateur (${role})`, email],
+          },
+        ],
+        "write",
+      );
+    } else if (b.action === "adminResetPassword") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const uid = String(b.id || "").trim();
+      const newPassword = String(b.password || "");
+      if (!uid || newPassword.length < 6)
+        throw new Error("Le mot de passe doit contenir au moins 6 caractères.");
+      await setUserPassword(uid, newPassword);
+      await db.execute({
+        sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+        args: [String(user.id), "Réinitialiser mot de passe", uid],
+      });
+    } else if (b.action === "adminDeleteUser") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const uid = String(b.id || "").trim();
+      if (!uid) throw new Error("ID utilisateur requis.");
+      if (uid === String(user.id))
+        throw new Error("Impossible de supprimer votre propre compte superadmin.");
+      const store = (
+        await db.execute({
+          sql: "SELECT id FROM stocky_stores WHERE owner=?",
+          args: [uid],
+        })
+      ).rows[0];
+      if (store) {
+        await db.execute({
+          sql: "DELETE FROM stocky_products WHERE store_id=?",
+          args: [String(store.id)],
+        });
+        await db.execute({
+          sql: "DELETE FROM stocky_stores WHERE id=?",
+          args: [String(store.id)],
+        });
+      }
+      await db.execute({
+        sql: "DELETE FROM stocky_sessions WHERE user_id=?",
+        args: [uid],
+      });
+      await db.execute({
+        sql: "DELETE FROM stocky_passwords WHERE user_id=?",
+        args: [uid],
+      });
+      await db.execute({
+        sql: "DELETE FROM stocky_users WHERE id=?",
+        args: [uid],
+      });
+      await db.execute({
+        sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+        args: [String(user.id), "Supprimer utilisateur", uid],
+      });
+    } else if (b.action === "adminCreateUser") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const email = String(b.email || "").trim().toLowerCase();
+      const role = String(b.role || "seller").trim();
+      const password = String(b.password || "");
+      const nom = String(b.nom || "").trim().slice(0, 100);
+      const prenom = String(b.prenom || "").trim().slice(0, 100);
+      if (!email || !["customer", "seller", "superadmin"].includes(role))
+        throw new Error("E-mail ou rôle invalide.");
+      if (password.length < 6)
+        throw new Error("Le mot de passe doit contenir au moins 6 caractères.");
+      const existing = await db.execute({
+        sql: "SELECT id FROM stocky_users WHERE email=?",
+        args: [email],
+      });
+      if (existing.rows.length)
+        throw new Error("Un utilisateur avec cet e-mail existe déjà.");
+      const newUid = randomUUID();
+      await db.execute({
+        sql: "INSERT INTO stocky_users(id,email,role,nom,prenom) VALUES(?,?,?,?,?)",
+        args: [newUid, email, role, nom, prenom],
+      });
+      await setUserPassword(newUid, password);
+      await db.execute({
+        sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+        args: [String(user.id), `Créer utilisateur (${role})`, email],
+      });
+    } else if (b.action === "adminEditStore") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const sid = String(b.id || "").trim();
+      const name = String(b.name || "").trim();
+      const status = String(b.status || "pending").trim();
+      if (!sid || !name) throw new Error("Nom de la boutique requis.");
+      if (!["active", "pending", "suspended"].includes(status))
+        throw new Error("Statut invalide.");
+      await db.batch(
+        [
+          {
+            sql: "UPDATE stocky_stores SET name=?, phone=?, status=?, description=?, address=?, governorate=?, whatsapp=? WHERE id=?",
+            args: [
+              name,
+              String(b.phone || ""),
+              status,
+              String(b.description || ""),
+              String(b.address || ""),
+              String(b.governorate || ""),
+              String(b.whatsapp || ""),
+              sid,
+            ],
+          },
+          {
+            sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+            args: [String(user.id), `Modifier boutique (${status})`, sid],
+          },
+        ],
+        "write",
+      );
+    } else if (b.action === "adminDeleteStore") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const sid = String(b.id || "").trim();
+      if (!sid) throw new Error("ID boutique requis.");
+      await db.execute({
+        sql: "DELETE FROM stocky_products WHERE store_id=?",
+        args: [sid],
+      });
+      await db.execute({
+        sql: "DELETE FROM stocky_stores WHERE id=?",
+        args: [sid],
+      });
+      await db.execute({
+        sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+        args: [String(user.id), "Supprimer boutique", sid],
+      });
+    } else if (b.action === "adminEditProduct") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const pid = String(b.id || "").trim();
+      const name = String(b.name || "").trim();
+      const price = Number(b.price);
+      const stock = Number(b.stock);
+      const status = String(b.status || "pending").trim();
+      if (
+        !pid ||
+        !name ||
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        !Number.isInteger(stock) ||
+        stock < 0
+      )
+        throw new Error("Données produit invalides.");
+      if (!["active", "pending", "suspended"].includes(status))
+        throw new Error("Statut invalide.");
+      await db.batch(
+        [
+          {
+            sql: "UPDATE stocky_products SET name=?, price=?, stock=?, category=?, description=?, condition=?, status=? WHERE id=?",
+            args: [
+              name,
+              Math.round(price * 1000),
+              stock,
+              String(b.category || "Mode"),
+              String(b.description || ""),
+              String(b.condition || "Très bon état"),
+              status,
+              pid,
+            ],
+          },
+          {
+            sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+            args: [String(user.id), `Modifier produit (${status})`, pid],
+          },
+        ],
+        "write",
+      );
+    } else if (b.action === "adminDeleteProduct") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const pid = String(b.id || "").trim();
+      if (!pid) throw new Error("ID produit requis.");
+      await db.execute({
+        sql: "DELETE FROM stocky_products WHERE id=?",
+        args: [pid],
+      });
+      await db.execute({
+        sql: "DELETE FROM stocky_product_images WHERE product_id=?",
+        args: [pid],
+      });
+      await db.execute({
+        sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
+        args: [String(user.id), "Supprimer produit", pid],
+      });
     } else if (b.action === "deleteDemo") {
       if (!admin)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });

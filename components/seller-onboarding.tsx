@@ -41,7 +41,7 @@ export function SellerOnboarding({
     [cover, setCover] = useState(""),
     [productImage, setProductImage] = useState(""),
     [otpSent, setOtpSent] = useState(false),
-    [credentials, setCredentials] = useState({ email: "", password: "" }),
+    [credentials, setCredentials] = useState({ email: "", password: "", nom: "", prenom: "" }),
     [uploading, setUploading] = useState(false),
     [localError, setLocalError] = useState("");
   useEffect(() => { sessionStorage.setItem("stocky-onboarding", JSON.stringify(store)); }, [store]);
@@ -69,6 +69,8 @@ export function SellerOnboarding({
       const next = {
         email: String(values.email || ""),
         password: String(values.password || ""),
+        nom: String(values.nom || ""),
+        prenom: String(values.prenom || ""),
       };
       const result = await act({ action: "otp", email: next.email });
       if (result) {
@@ -148,6 +150,18 @@ export function SellerOnboarding({
       {localError && <p className="p-error">{localError}</p>}
       {step === 0 && !otpSent && (
         <form onSubmit={account}>
+          {register && (
+            <div className="field-row">
+              <label>
+                Nom
+                <input name="nom" required maxLength={100} placeholder="Votre nom" />
+              </label>
+              <label>
+                Prénom
+                <input name="prenom" required maxLength={100} placeholder="Votre prénom" />
+              </label>
+            </div>
+          )}
           <label>
             E-mail professionnel
             <input name="email" type="email" autoComplete="email" required />
@@ -269,10 +283,25 @@ export function SellerOnboarding({
                   "Ben Arous",
                   "Manouba",
                   "Nabeul",
+                  "Zaghouan",
+                  "Bizerte",
+                  "Béja",
+                  "Jendouba",
+                  "Kef",
+                  "Siliana",
                   "Sousse",
                   "Monastir",
+                  "Mahdia",
                   "Sfax",
-                  "Autre",
+                  "Kairouan",
+                  "Kasserine",
+                  "Sidi Bouzid",
+                  "Gabès",
+                  "Medenine",
+                  "Tataouine",
+                  "Gafsa",
+                  "Tozeur",
+                  "Kebili",
                 ].map((x) => (
                   <option key={x}>{x}</option>
                 ))}
@@ -368,15 +397,26 @@ export function SellerOnboarding({
               <input name="stock" type="number" min="0" step="1" required />
             </label>
           </div>
-          <label>
-            Catégorie
-            <select name="category">
-              <option>Femme</option>
-              <option>Homme</option>
-              <option>Accessoires</option>
-              <option>Maison</option>
-            </select>
-          </label>
+          <div className="field-row">
+            <label>
+              Catégorie
+              <select name="category">
+                <option>Femme</option>
+                <option>Homme</option>
+                <option>Accessoires</option>
+                <option>Maison</option>
+              </select>
+            </label>
+            <label>
+              État
+              <select name="condition">
+                <option>Neuf</option>
+                <option>Très bon état</option>
+                <option>Bon état</option>
+                <option>Acceptable</option>
+              </select>
+            </label>
+          </div>
           <label>
             Description
             <textarea name="description" required maxLength={5000} />
