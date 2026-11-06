@@ -2,6 +2,7 @@
   "name": "stocky-downy",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.20.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
