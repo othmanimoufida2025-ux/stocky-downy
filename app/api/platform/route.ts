@@ -835,6 +835,71 @@ export async function POST(req: NextRequest) {
         sql: "INSERT INTO stocky_audit(actor,action,entity) VALUES(?,?,?)",
         args: [String(user.id), `Créer utilisateur (${role})`, email],
       });
+    } else if (b.action === "adminCreateCategory") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const name = String(b.name || "").trim();
+      if (!name) throw new Error("Nom de catégorie requis.");
+      const catId = randomUUID();
+      const slug = entitySlug(name, catId);
+      const image = String(b.image || "").trim();
+      const description = String(b.description || "").trim();
+      const position = Number.isInteger(Number(b.position)) ? Number(b.position) : 0;
+      await db.execute({
+        sql: "INSERT INTO stocky_categories(id, name, slug, image, description, position) VALUES(?,?,?,?,?,?)",
+        args: [catId, name, slug, image, description, position],
+      });
+      await db.execute({
+        sql: "INSERT INTO stocky_audit (actor, action, entity) VALUES (?, ?, ?)",
+        args: [String(user.id), "Créer catégorie", name],
+      });
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true, id: catId });
+    } else if (b.action === "adminEditCategory") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const catId = String(b.id || "").trim();
+      const name = String(b.name || "").trim();
+      if (!catId || !name) throw new Error("ID et nom de catégorie requis.");
+      const existing = (await db.execute({ sql: "SELECT * FROM stocky_categories WHERE id=?", args: [catId] })).rows[0];
+      if (!existing) throw new Error("Catégorie introuvable.");
+      const slug = String(b.slug || "").trim() || entitySlug(name, catId);
+      const image = String(b.image !== undefined ? b.image : existing.image || "").trim();
+      const description = String(b.description !== undefined ? b.description : existing.description || "").trim();
+      const position = Number.isInteger(Number(b.position)) ? Number(b.position) : Number(existing.position || 0);
+
+      await db.execute({
+        sql: "UPDATE stocky_categories SET name=?, slug=?, image=?, description=?, position=? WHERE id=?",
+        args: [name, slug, image, description, position, catId],
+      });
+      if (String(existing.name) !== name) {
+        await db.execute({
+          sql: "UPDATE stocky_products SET category=? WHERE category=?",
+          args: [name, String(existing.name)],
+        });
+      }
+      await db.execute({
+        sql: "INSERT INTO stocky_audit (actor, action, entity) VALUES (?, ?, ?)",
+        args: [String(user.id), "Modifier catégorie", name],
+      });
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true });
+    } else if (b.action === "adminDeleteCategory") {
+      if (!admin)
+        return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+      const catId = String(b.id || "").trim();
+      if (!catId) throw new Error("ID de catégorie requis.");
+      const existing = (await db.execute({ sql: "SELECT name FROM stocky_categories WHERE id=?", args: [catId] })).rows[0];
+      await db.execute({
+        sql: "DELETE FROM stocky_categories WHERE id=?",
+        args: [catId],
+      });
+      await db.execute({
+        sql: "INSERT INTO stocky_audit (actor, action, entity) VALUES (?, ?, ?)",
+        args: [String(user.id), "Supprimer catégorie", String(existing?.name || catId)],
+      });
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true });
     } else if (b.action === "adminEditStore") {
       if (!admin)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });

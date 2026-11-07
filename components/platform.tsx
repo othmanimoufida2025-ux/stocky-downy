@@ -70,7 +70,18 @@ type Order = {
   status: string;
   created: string;
 };
+
+export type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  image: string;
+  description: string;
+  position?: number;
+};
+
 type Data = OperationsData & {
+  categories?: Category[];
   user: {
     id: string;
     email: string;
@@ -81,6 +92,7 @@ type Data = OperationsData & {
   orders: Order[];
 };
 const empty: Data = {
+  categories: [],
   user: null,
   products: [],
   stores: [],

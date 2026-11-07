@@ -4,7 +4,7 @@ import { db, identity } from "@/lib/backend";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const empty = { products: [], stores: [], requests: [], audit: [], users: [] };
+const empty = { products: [], stores: [], requests: [], audit: [], users: [], categories: [] };
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
     if (!user)
       return NextResponse.json({ user: null, ...empty }, { headers: { "Cache-Control": "no-store" } });
     const admin = user.role === "superadmin";
-    const [products, stores, requests, audit, users, productImages] = await Promise.all([
+    const [products, stores, requests, audit, users, productImages, categories] = await Promise.all([
       db.execute(
         admin
           ? "SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,p.status,p.demo,s.name AS store,s.slug AS store_slug FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id ORDER BY p.name"
@@ -48,6 +48,7 @@ export async function GET() {
           )
         : Promise.resolve({ rows: [] }),
       db.execute("SELECT product_id, url FROM stocky_product_images ORDER BY position ASC"),
+      db.execute("SELECT id, name, slug, image, description, position FROM stocky_categories ORDER BY position ASC, name ASC"),
     ]);
     const imagesByProduct: Record<string, string[]> = {};
     for (const r of (productImages?.rows || [])) {
@@ -71,6 +72,7 @@ export async function GET() {
         requests: requests.rows,
         audit: audit.rows,
         users: users.rows,
+        categories: categories.rows,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

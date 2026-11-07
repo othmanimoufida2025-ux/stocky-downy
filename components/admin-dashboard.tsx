@@ -90,7 +90,19 @@ export type AdminUser = {
   prenom?: string;
 };
 
+
+export type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  image: string;
+  description: string;
+  position?: number;
+  product_count?: number;
+};
+
 export type AdminData = OperationsData & {
+  categories?: Category[];
   products: Product[];
   stores: Shop[];
   orders: Order[];
@@ -103,6 +115,7 @@ const items = [
   ["overview", "Vue générale", LayoutDashboard],
   ["stores", "Boutiques", Building2],
   ["products", "Produits", PackageCheck],
+  ["categories", "Catégories", Boxes],
   ["users", "Utilisateurs", Users],
   ["orders", "Commandes", ClipboardList],
   ["services", "Services", LifeBuoy],
@@ -145,6 +158,12 @@ export function AdminDashboard({
 
   const [selectedStore, setSelectedStore] = useState<Shop | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Category management states
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [categoryCoverUrl, setCategoryCoverUrl] = useState("");
+  const [uploadingCategoryCover, setUploadingCategoryCover] = useState(false);
 
   const notify = (message: string, isError = false) => {
     setFeedback({ type: isError ? "error" : "success", message });
@@ -380,6 +399,109 @@ export function AdminDashboard({
       if (selectedProduct?.id === product.id) setSelectedProduct(null);
     } else {
       notify("Impossible de supprimer ce produit.", true);
+    }
+  }
+
+  // Category CRUD Handlers
+  async function handleCreateCategory(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const name = String(form.get("name") || "").trim();
+    const description = String(form.get("description") || "").trim();
+    const position = Number(form.get("position") || 0);
+    const image = categoryCoverUrl || String(form.get("image") || "").trim();
+
+    if (!name) {
+      notify("Le nom de la catégorie est obligatoire.", true);
+      return;
+    }
+
+    const res = await act({
+      action: "adminCreateCategory",
+      name,
+      description,
+      position,
+      image,
+    });
+
+    if (res) {
+      notify(`Catégorie "${name}" créée avec succès.`);
+      setCreateCategoryOpen(false);
+      setCategoryCoverUrl("");
+    } else {
+      notify("Erreur lors de la création de la catégorie.", true);
+    }
+  }
+
+  async function handleEditCategory(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedCategory) return;
+    const form = new FormData(e.currentTarget);
+    const name = String(form.get("name") || "").trim();
+    const slug = String(form.get("slug") || "").trim();
+    const description = String(form.get("description") || "").trim();
+    const position = Number(form.get("position") || 0);
+    const image = categoryCoverUrl || String(form.get("image") || selectedCategory.image || "").trim();
+
+    if (!name) {
+      notify("Le nom de la catégorie est obligatoire.", true);
+      return;
+    }
+
+    const res = await act({
+      action: "adminEditCategory",
+      id: selectedCategory.id,
+      name,
+      slug,
+      description,
+      position,
+      image,
+    });
+
+    if (res) {
+      notify(`Catégorie "${name}" modifiée avec succès.`);
+      setSelectedCategory(null);
+      setCategoryCoverUrl("");
+    } else {
+      notify("Erreur lors de la modification de la catégorie.", true);
+    }
+  }
+
+  async function handleDeleteCategory(cat: Category) {
+    if (!confirm(`Supprimer définitivement la catégorie "${cat.name}" ?`)) return;
+    const res = await act({
+      action: "adminDeleteCategory",
+      id: cat.id,
+    });
+    if (res) {
+      notify(`Catégorie "${cat.name}" supprimée.`);
+      if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+    } else {
+      notify("Impossible de supprimer cette catégorie.", true);
+    }
+  }
+
+  async function handleUploadCatCover(file: File) {
+    if (file.size > 1500000) {
+      notify("L'image ne doit pas dépasser 1.5 Mo.", true);
+      return;
+    }
+    setUploadingCategoryCover(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/media", { method: "POST", body: fd });
+      const json = await res.json();
+      if (json.url) {
+        setCategoryCoverUrl(json.url);
+        notify("Photo de couverture chargée !");
+      } else {
+        notify(json.error || "Erreur de chargement.", true);
+      }
+    } catch {
+      notify("Erreur de connexion.", true);
+    } finally {
+      setUploadingCategoryCover(false);
     }
   }
 
@@ -1003,6 +1125,171 @@ export function AdminDashboard({
       </section>
 
       {/* ================= MODALS ================= */}
+
+      {/* CREATE CATEGORY MODAL */}
+      <Dialog.Root open={createCategoryOpen} onOpenChange={setCreateCategoryOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="p-overlay" />
+          <Dialog.Content className="p-dialog" style={{ width: "min(560px, 95vw)" }}>
+            <Dialog.Title>Créer une nouvelle catégorie</Dialog.Title>
+            <Dialog.Close className="p-close" aria-label="Fermer">
+              <X size={18} />
+            </Dialog.Close>
+            <form onSubmit={handleCreateCategory} style={{ display: "grid", gap: "14px" }}>
+              <label>
+                Nom de la catégorie *
+                <input name="name" required placeholder="Ex: Vintage 90s, Denim..." />
+              </label>
+
+              <label>
+                Description
+                <textarea name="description" rows={2} placeholder="Courte description de ce rayon..." />
+              </label>
+
+              <label>
+                Ordre d'affichage (position)
+                <input name="position" type="number" defaultValue="0" />
+              </label>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "6px" }}>Photo de couverture</label>
+                {categoryCoverUrl && (
+                  <div style={{ width: "100%", height: "120px", borderRadius: "8px", overflow: "hidden", marginBottom: "8px" }}>
+                    <img src={categoryCoverUrl} alt="Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    name="image"
+                    value={categoryCoverUrl}
+                    onChange={(e) => setCategoryCoverUrl(e.target.value)}
+                    placeholder="URL de l'image (https://...) ou téléversez ci-contre"
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="file"
+                    id="cat-cover-file"
+                    accept="image/png,image/jpeg,image/webp"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUploadCatCover(f);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingCategoryCover}
+                    onClick={() => document.getElementById("cat-cover-file")?.click()}
+                  >
+                    {uploadingCategoryCover ? "Envoi..." : "Téléverser"}
+                  </Button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "10px" }}>
+                <Button type="button" variant="outline" onClick={() => setCreateCategoryOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" variant="primary" disabled={busy || uploadingCategoryCover}>
+                  Créer la catégorie
+                </Button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* EDIT CATEGORY MODAL */}
+      <Dialog.Root open={!!selectedCategory} onOpenChange={(open) => !open && setSelectedCategory(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="p-overlay" />
+          <Dialog.Content className="p-dialog" style={{ width: "min(560px, 95vw)" }}>
+            <Dialog.Title>Modifier la catégorie</Dialog.Title>
+            <Dialog.Close className="p-close" aria-label="Fermer">
+              <X size={18} />
+            </Dialog.Close>
+            {selectedCategory && (
+              <form onSubmit={handleEditCategory} style={{ display: "grid", gap: "14px" }}>
+                <label>
+                  Nom de la catégorie *
+                  <input name="name" defaultValue={selectedCategory.name} required />
+                </label>
+
+                <label>
+                  Slug URL
+                  <input name="slug" defaultValue={selectedCategory.slug} />
+                </label>
+
+                <label>
+                  Description
+                  <textarea name="description" rows={2} defaultValue={selectedCategory.description || ""} />
+                </label>
+
+                <label>
+                  Ordre d'affichage (position)
+                  <input name="position" type="number" defaultValue={String(selectedCategory.position || 0)} />
+                </label>
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "6px" }}>Photo de couverture</label>
+                  {categoryCoverUrl && (
+                    <div style={{ width: "100%", height: "120px", borderRadius: "8px", overflow: "hidden", marginBottom: "8px" }}>
+                      <img src={categoryCoverUrl} alt="Cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      name="image"
+                      value={categoryCoverUrl}
+                      onChange={(e) => setCategoryCoverUrl(e.target.value)}
+                      placeholder="URL de l'image (https://...) ou téléversez ci-contre"
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      type="file"
+                      id="cat-cover-edit-file"
+                      accept="image/png,image/jpeg,image/webp"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadCatCover(f);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingCategoryCover}
+                      onClick={() => document.getElementById("cat-cover-edit-file")?.click()}
+                    >
+                      {uploadingCategoryCover ? "Envoi..." : "Téléverser"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    onClick={() => handleDeleteCategory(selectedCategory)}
+                  >
+                    <Trash2 size={14} /> Supprimer
+                  </Button>
+
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Button type="button" variant="outline" onClick={() => setSelectedCategory(null)}>
+                      Annuler
+                    </Button>
+                    <Button type="submit" variant="primary" disabled={busy || uploadingCategoryCover}>
+                      Enregistrer
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {/* 1. EDIT USER MODAL */}
       <Dialog.Root open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
