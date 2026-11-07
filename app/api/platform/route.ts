@@ -569,6 +569,13 @@ export async function POST(req: NextRequest) {
       )
         throw new Error("Vérifiez le nom, le prix et le stock.");
       const productId = randomUUID();
+      const rawImages: string[] = Array.isArray(b.images)
+        ? b.images.map(String).filter((u: string) => /^\/api\/media\?id=[a-f0-9-]{36}$/.test(u))
+        : /^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image || ""))
+          ? [String(b.image)]
+          : [];
+      const primaryImage = rawImages[0] || (/^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image)) ? String(b.image) : "");
+
       await db.execute({
         sql: "INSERT INTO stocky_products(id,store_id,name,slug,price,stock,category,description,image,condition) VALUES(?,?,?,?,?,?,?,?,?,?)",
         args: [
@@ -580,12 +587,19 @@ export async function POST(req: NextRequest) {
           b.stock,
           String(b.category || "Mode"),
           String(b.description || "").slice(0, 5000),
-          /^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image))
-            ? String(b.image)
-            : "",
+          primaryImage,
           String(b.condition || "Très bon état").slice(0, 80),
         ],
       });
+
+      for (let i = 0; i < rawImages.length; i++) {
+        await db.execute({
+          sql: "INSERT INTO stocky_product_images(id,product_id,url,position) VALUES(?,?,?,?)",
+          args: [randomUUID(), productId, rawImages[i], i],
+        });
+      }
+      revalidateTag("stocky-catalog");
+
       const adminEmail = adminNotificationEmail();
       if (adminEmail)
         await notifyEmail({
@@ -596,6 +610,82 @@ export async function POST(req: NextRequest) {
           actionLabel: "Ouvrir la modération",
           actionUrl: `${process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin}/superadmin`,
         });
+      return NextResponse.json({ ok: true, id: productId });
+    } else if (b.action === "sellerEditProduct" || b.action === "editProduct") {
+      const pid = String(b.id || "").trim();
+      if (!pid) throw new Error("ID produit manquant.");
+      const prod = (
+        await db.execute({
+          sql: "SELECT * FROM stocky_products WHERE id=?",
+          args: [pid],
+        })
+      ).rows[0];
+      if (!prod || (!admin && (!own || String(prod.store_id) !== String(own.id)))) {
+        throw new Error("Action non autorisée.");
+      }
+      const price = Number(b.price);
+      const stock = Number(b.stock);
+      if (!b.name || !Number.isFinite(price) || price <= 0 || !Number.isInteger(stock) || stock < 0) {
+        throw new Error("Vérifiez le nom, le prix et le stock.");
+      }
+
+      const rawImages: string[] = Array.isArray(b.images)
+        ? b.images.map(String).filter((u: string) => /^\/api\/media\?id=[a-f0-9-]{36}$/.test(u))
+        : /^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image || ""))
+          ? [String(b.image)]
+          : [];
+      const primaryImage = rawImages[0] || (/^\/api\/media\?id=[a-f0-9-]{36}$/.test(String(b.image)) ? String(b.image) : String(prod.image || ""));
+
+      await db.execute({
+        sql: "UPDATE stocky_products SET name=?, price=?, stock=?, category=?, condition=?, description=?, image=? WHERE id=?",
+        args: [
+          String(b.name).slice(0, 150),
+          Math.round(price * 1000),
+          stock,
+          String(b.category || prod.category || "Mode"),
+          String(b.condition || prod.condition || "Très bon état").slice(0, 80),
+          String(b.description || "").slice(0, 5000),
+          primaryImage,
+          pid,
+        ],
+      });
+
+      if (Array.isArray(b.images)) {
+        await db.execute({
+          sql: "DELETE FROM stocky_product_images WHERE product_id=?",
+          args: [pid],
+        });
+        for (let i = 0; i < rawImages.length; i++) {
+          await db.execute({
+            sql: "INSERT INTO stocky_product_images(id,product_id,url,position) VALUES(?,?,?,?)",
+            args: [randomUUID(), pid, rawImages[i], i],
+          });
+        }
+      }
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true });
+    } else if (b.action === "sellerDeleteProduct" || b.action === "deleteProduct") {
+      const pid = String(b.id || "").trim();
+      if (!pid) throw new Error("ID produit manquant.");
+      const prod = (
+        await db.execute({
+          sql: "SELECT * FROM stocky_products WHERE id=?",
+          args: [pid],
+        })
+      ).rows[0];
+      if (!prod || (!admin && (!own || String(prod.store_id) !== String(own.id)))) {
+        throw new Error("Action non autorisée.");
+      }
+      await db.execute({
+        sql: "DELETE FROM stocky_product_images WHERE product_id=?",
+        args: [pid],
+      });
+      await db.execute({
+        sql: "DELETE FROM stocky_products WHERE id=?",
+        args: [pid],
+      });
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true });
     } else if (b.action === "moderate") {
       if (!admin)
         return NextResponse.json({ error: "Accès interdit." }, { status: 403 });

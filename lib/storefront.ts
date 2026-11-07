@@ -13,6 +13,7 @@ export type StorefrontProduct = {
   category: string;
   description: string;
   image: string;
+  images?: string[];
   condition: string;
 };
 
@@ -58,7 +59,16 @@ export async function publicProduct(slug: string) {
           WHERE p.slug=? AND p.status='active' AND s.status='active'`,
     args: [slug],
   });
-  return result.rows[0] as unknown as (StorefrontProduct & { store_logo: string; whatsapp: string }) | undefined;
+  if (!result.rows[0]) return undefined;
+  const prod = result.rows[0] as unknown as (StorefrontProduct & { store_logo: string; whatsapp: string; images?: string[] });
+  const imgRes = await db.execute({
+    sql: "SELECT url FROM stocky_product_images WHERE product_id=? ORDER BY position ASC",
+    args: [prod.id],
+  });
+  const gallery = imgRes.rows.map((r) => String(r.url));
+  if (!gallery.length && prod.image) gallery.push(prod.image);
+  prod.images = gallery;
+  return prod;
 }
 
 export async function publicShop(slug: string) {

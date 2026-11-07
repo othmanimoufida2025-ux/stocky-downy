@@ -26,11 +26,13 @@ import {
   type OperationsData,
 } from "./operations";
 import { AdminDashboard } from "./admin-dashboard";
+import { SellerDashboard } from "./seller-dashboard";
 import { SellerOnboarding } from "./seller-onboarding";
 import { STATUS_FR } from "@/lib/order-ref";
 type Product = {
   store_id: string;
   image?: string;
+  images?: string[];
   id: string;
   name: string;
   price: number;
@@ -259,6 +261,12 @@ export default function Platform({
   }
   if (view === "admin" && admin) {
     return <AdminDashboard data={data} act={act} busy={busy}/>;
+  }
+  if ((initialView === "workspace" || view === "workspace") && loading) {
+    return <div className="admin-loading"><img src="/stocky-logo.svg" alt="Stocky"/><p>Chargement de votre espace vendeur…</p></div>;
+  }
+  if ((initialView === "workspace" || view === "workspace") && data.user) {
+    return <SellerDashboard data={data} act={act} busy={busy} refresh={refresh}/>;
   }
   return (
     <div className="platform">

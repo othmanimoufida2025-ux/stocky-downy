@@ -47,6 +47,7 @@ export type Product = {
   category?: string;
   description?: string;
   image?: string;
+  images?: string[];
   condition?: string;
   demo?: number;
 };
