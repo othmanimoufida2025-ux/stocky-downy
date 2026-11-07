@@ -30,13 +30,28 @@ export type StorefrontShop = {
 
 export async function publicProducts() {
   await init();
-  const result = await db.execute(
-    `SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,
-            s.name AS store,s.slug AS store_slug,s.governorate
-     FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id
-     WHERE p.status='active' AND s.status='active' ORDER BY p.name`,
-  );
-  return result.rows as unknown as StorefrontProduct[];
+  const [result, imgRes] = await Promise.all([
+    db.execute(
+      `SELECT p.id,p.slug,p.store_id,p.name,p.price,p.stock,p.category,p.description,p.image,p.condition,
+              s.name AS store,s.slug AS store_slug,s.governorate
+       FROM stocky_products p JOIN stocky_stores s ON s.id=p.store_id
+       WHERE p.status='active' AND s.status='active' ORDER BY p.name`,
+    ),
+    db.execute("SELECT product_id, url FROM stocky_product_images ORDER BY position ASC"),
+  ]);
+  const imagesByProduct: Record<string, string[]> = {};
+  for (const r of imgRes.rows) {
+    const pid = String(r.product_id);
+    (imagesByProduct[pid] ||= []).push(String(r.url));
+  }
+  return result.rows.map((p) => {
+    const gallery = imagesByProduct[String(p.id)] || [];
+    if (!gallery.length && p.image) gallery.push(String(p.image));
+    return {
+      ...p,
+      images: gallery,
+    } as unknown as StorefrontProduct;
+  });
 }
 
 export async function publicShops() {
