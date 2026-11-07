@@ -1,3 +1,67 @@
+
+export const DEFAULT_CATEGORY_COVERS: { name: string; slug: string; image: string; description: string }[] = [
+  {
+    name: "Femme",
+    slug: "femme",
+    image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
+    description: "Robes, vestes, hauts et pièces élégantes de seconde main sélectionnées.",
+  },
+  {
+    name: "Homme",
+    slug: "homme",
+    image: "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=800&q=80",
+    description: "Vestes rétro, denim, chemises et streetwear intemporel.",
+  },
+  {
+    name: "Chaussures",
+    slug: "chaussures",
+    image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+    description: "Sneakers rares, bottines en cuir et souliers vintage remis à neuf.",
+  },
+  {
+    name: "Sacs & Maroquinerie",
+    slug: "sacs-maroquinerie",
+    image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80",
+    description: "Sacs à main, cabas, besaces en cuir véritable et pièces d'exception.",
+  },
+  {
+    name: "Accessoires & Bijoux",
+    slug: "accessoires-bijoux",
+    image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80",
+    description: "Ceintures, foulards en soie, lunettes rétro et bijoux uniques.",
+  },
+  {
+    name: "Vintage & Rétro",
+    slug: "vintage-retro",
+    image: "https://images.unsplash.com/photo-1550614000-4895a10e1bfd?auto=format&fit=crop&w=800&q=80",
+    description: "Trésors des années 70, 80 et 90 chinés avec amour.",
+  },
+  {
+    name: "Luxe & Créateurs",
+    slug: "luxe-createurs",
+    image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80",
+    description: "Grandes maisons et créateurs d'exception à prix circulaire.",
+  },
+  {
+    name: "Enfant & Bébé",
+    slug: "enfant-bebe",
+    image: "https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=800&q=80",
+    description: "Vêtements doux, durables et écologiques pour les plus petits.",
+  },
+  {
+    name: "Upcycling & Créations",
+    slug: "upcycling-creations",
+    image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80",
+    description: "Pièces uniques réinventées et transformées par des créateurs tunisiens.",
+  },
+  {
+    name: "Maison & Déco",
+    slug: "maison-deco",
+    image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+    description: "Textiles d'époque, céramiques et objets de caractère pour votre intérieur.",
+  },
+];
+
 import { createClient } from "@libsql/client";
 import nodemailer from "nodemailer";
 import {
@@ -5,6 +69,7 @@ import {
   createHmac,
   randomBytes,
   randomInt,
+  randomUUID,
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
@@ -187,6 +252,26 @@ export function init() {
       await db.execute({
         sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
         args: ["003-user-names", Date.now()],
+      });
+    }
+    const categoryCovers = await db.execute({
+      sql: "SELECT id FROM stocky_schema_migrations WHERE id=?",
+      args: ["004-category-covers"],
+    });
+    if (!categoryCovers.rows.length) {
+      await db.execute(
+        "CREATE TABLE IF NOT EXISTS stocky_categories (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, slug TEXT UNIQUE NOT NULL, image TEXT DEFAULT '', description TEXT DEFAULT '', position INTEGER DEFAULT 0)",
+      );
+      for (let i = 0; i < DEFAULT_CATEGORY_COVERS.length; i++) {
+        const c = DEFAULT_CATEGORY_COVERS[i];
+        await db.execute({
+          sql: "INSERT OR IGNORE INTO stocky_categories(id, name, slug, image, description, position) VALUES(?,?,?,?,?,?)",
+          args: [randomUUID(), c.name, c.slug, c.image, c.description, i],
+        });
+      }
+      await db.execute({
+        sql: "INSERT INTO stocky_schema_migrations(id,applied) VALUES(?,?)",
+        args: ["004-category-covers", Date.now()],
       });
     }
   })().catch((e) => {

@@ -94,3 +94,51 @@ export async function publicShop(slug: string) {
   });
   return result.rows[0] as unknown as StorefrontShop | undefined;
 }
+
+
+export type StorefrontCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  image: string;
+  description: string;
+  product_count?: number;
+};
+
+export async function publicCategories(): Promise<StorefrontCategory[]> {
+  await init();
+  const [cats, products] = await Promise.all([
+    db.execute("SELECT id, name, slug, image, description, position FROM stocky_categories ORDER BY position ASC, name ASC"),
+    db.execute("SELECT category, image FROM stocky_products WHERE status='active'"),
+  ]);
+
+  const counts: Record<string, number> = {};
+  const firstImages: Record<string, string> = {};
+  for (const p of products.rows) {
+    const c = String(p.category);
+    counts[c] = (counts[c] || 0) + 1;
+    if (!firstImages[c] && p.image) firstImages[c] = String(p.image);
+  }
+
+  if (!cats.rows.length) {
+    // Fallback if not yet migrated
+    const { DEFAULT_CATEGORY_COVERS } = await import("./backend");
+    return DEFAULT_CATEGORY_COVERS.map((c, i) => ({
+      id: String(i + 1),
+      name: c.name,
+      slug: c.slug,
+      image: c.image || firstImages[c.name] || "/demo-fashion.svg",
+      description: c.description,
+      product_count: counts[c.name] || 0,
+    }));
+  }
+
+  return cats.rows.map((r: any) => ({
+    id: String(r.id),
+    name: String(r.name),
+    slug: String(r.slug),
+    image: r.image || firstImages[String(r.name)] || "/demo-fashion.svg",
+    description: String(r.description || ""),
+    product_count: counts[String(r.name)] || 0,
+  }));
+}

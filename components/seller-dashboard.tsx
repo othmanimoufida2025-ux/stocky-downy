@@ -148,6 +148,20 @@ export const CIRCULAR_CATEGORIES = [
   "Maison & Déco",
 ];
 
+
+export const CATEGORY_DEFAULT_COVERS: Record<string, string> = {
+  "Femme": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
+  "Homme": "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=800&q=80",
+  "Chaussures": "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+  "Sacs & Maroquinerie": "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80",
+  "Accessoires & Bijoux": "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80",
+  "Vintage & Rétro": "https://images.unsplash.com/photo-1550614000-4895a10e1bfd?auto=format&fit=crop&w=800&q=80",
+  "Luxe & Créateurs": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80",
+  "Enfant & Bébé": "https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=800&q=80",
+  "Upcycling & Créations": "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80",
+  "Maison & Déco": "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+};
+
 export const CONDITIONS = [
   "Neuf avec étiquette",
   "Comme neuf",
@@ -1295,44 +1309,95 @@ export function SellerDashboard({
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
-              {categoriesStats.map((c) => (
-                <div
-                  key={c.name}
-                  style={{
-                    padding: "20px",
-                    borderRadius: "14px",
-                    border: "1px solid #ebdcd5",
-                    background: "#fff",
-                    boxShadow: "0 4px 15px rgba(0,0,0,0.02)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <strong style={{ fontSize: "17px", color: "#2e2421" }}>{c.name}</strong>
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "999px",
-                          background: c.count > 0 ? "#812c2c" : "#eee",
-                          color: c.count > 0 ? "#fff" : "#888",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {c.count} pièce{c.count > 1 ? "s" : ""}
-                      </span>
+              {categoriesStats.map((c) => {
+                const cover = CATEGORY_DEFAULT_COVERS[c.name] || "/demo-fashion.svg";
+                return (
+                  <div
+                    key={c.name}
+                    style={{
+                      borderRadius: "14px",
+                      border: "1px solid #ebdcd5",
+                      background: "#fff",
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.02)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div>
+                      {/* CATEGORY COVER IMAGE */}
+                      <div style={{ position: "relative", height: "140px", overflow: "hidden", backgroundColor: "#3a1919" }}>
+                        <img
+                          src={cover}
+                          alt={c.name}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)" }} />
+                        <div style={{ position: "absolute", bottom: "10px", left: "14px", right: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", color: "#fff" }}>
+                          <strong style={{ fontSize: "17px", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{c.name}</strong>
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: "999px",
+                              background: "rgba(255,255,255,0.25)",
+                              backdropFilter: "blur(4px)",
+                              color: "#fff",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {c.count} pièce{c.count > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: "16px 18px 0" }}>
+                        <div style={{ fontSize: "13px", color: "#6a544e", display: "grid", gap: "4px" }}>
+                          <div>Quantité en stock : <strong>{c.stock}</strong></div>
+                          <div>Valeur du rayon : <strong>{money(c.value)}</strong></div>
+                        </div>
+
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            fontSize: "12px",
+                            color: "#812c2c",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            marginTop: "10px",
+                          }}
+                        >
+                          <Camera size={14} /> Changer la photo de couverture
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 1500000) {
+                                notify("L'image ne doit pas dépasser 1.5 Mo", true);
+                                return;
+                              }
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              const res = await fetch("/api/media", { method: "POST", body: fd });
+                              const json = await res.json();
+                              if (json.url) {
+                                await act({ action: "updateCategoryCover", name: c.name, image: json.url });
+                                notify(`Photo de couverture de "${c.name}" mise à jour !`);
+                                if (refresh) refresh();
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
 
-                    <div style={{ marginTop: "14px", fontSize: "13px", color: "#6a544e", display: "grid", gap: "4px" }}>
-                      <div>Quantité en stock : <strong>{c.stock}</strong></div>
-                      <div>Valeur du rayon : <strong>{money(c.value)}</strong></div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid #f2e9e4", display: "flex", gap: "8px" }}>
+                  <div style={{ marginTop: "14px", padding: "12px 18px 16px", borderTop: "1px solid #f2e9e4", display: "flex", gap: "8px" }}>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1358,7 +1423,8 @@ export function SellerDashboard({
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

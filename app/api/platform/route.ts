@@ -664,6 +664,16 @@ export async function POST(req: NextRequest) {
       }
       revalidateTag("stocky-catalog");
       return NextResponse.json({ ok: true });
+    } else if (b.action === "updateCategoryCover") {
+      const name = String(b.name || "").trim();
+      const image = String(b.image || "").trim();
+      if (!name || !image) throw new Error("Nom de catégorie et image requis.");
+      await db.execute({
+        sql: "UPDATE stocky_categories SET image=? WHERE name=? OR id=?",
+        args: [image, name, String(b.id || "")],
+      });
+      revalidateTag("stocky-catalog");
+      return NextResponse.json({ ok: true });
     } else if (b.action === "sellerDeleteProduct" || b.action === "deleteProduct") {
       const pid = String(b.id || "").trim();
       if (!pid) throw new Error("ID produit manquant.");
