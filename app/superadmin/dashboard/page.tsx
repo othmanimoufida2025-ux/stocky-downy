@@ -1,11 +1,16 @@
-import { redirect } from 'next/navigation';
-import Platform from '@/components/platform';
-import { identity } from '@/lib/backend';
+import type { Metadata } from "next";
+import { identity } from "@/lib/backend";
+import { SuperadminDashboardClient } from "./dashboard-client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function SuperadminDashboard() {
+export const metadata: Metadata = {
+  title: "Super Admin | Stocky Downy",
+  description: "Pilotage et administration de la plateforme Stocky Downy",
+};
+
+export default async function SuperadminDashboardPage() {
   const user = await identity();
-  if (!user || user.role !== 'superadmin') redirect('/superadmin');
-  return <Platform initialView="admin" />;
+  const isSuperadmin = Boolean(user && user.role === "superadmin");
+  return <SuperadminDashboardClient isSuperadmin={isSuperadmin} />;
 }
