@@ -6,7 +6,8 @@ import { BadgeCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { AddToCart } from "@/components/add-to-cart";
 import type { StorefrontProduct } from "@/lib/storefront";
 
-export const money = (value: number) => `${(Number(value) / 1000).toFixed(2)} DT`;
+import { money } from "@/lib/utils";
+export { money };
 
 export function ProductCard({ product }: { product: StorefrontProduct }) {
   const fallback = product.category === "Accessoires" ? "/demo-bag.svg" : "/demo-fashion.svg";

@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, ChevronRight, MessageCircle, ShieldCheck, Truck } from "lucide-react";
 import { StorefrontShell } from "@/components/storefront-shell";
 import { AddToCart } from "@/components/add-to-cart";
-import { ProductCard, money } from "@/components/product-card";
+import { ProductCard } from "@/components/product-card";
+import { money } from "@/lib/utils";
 import { ProductGallery } from "@/components/product-gallery";
 import { publicProduct, publicProducts } from "@/lib/storefront";
 
