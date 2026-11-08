@@ -910,7 +910,219 @@ export function AdminDashboard({
           </>
         )}
 
-        {/* UTILISATEURS / USERS SECTION */}
+        {/* CATÉGORIES / CATEGORIES SECTION */}
+        {section === "categories" && (
+          <>
+            <div className="admin-toolbar" style={{ flexWrap: "wrap", gap: "12px" }}>
+              <div style={{ display: "flex", gap: "10px", flex: 1, minWidth: "260px" }}>
+                <input
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--sd-line, #e2d7d0)",
+                    background: "#fff",
+                  }}
+                  placeholder="Rechercher par nom de catégorie ou description…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    exportExcel("categories.xlsx", [
+                      ["Nom", "Slug", "Position", "Description", "Image"],
+                      ...(data.categories || []).map((c) => [
+                        c.name,
+                        c.slug,
+                        String(c.position || 0),
+                        c.description || "",
+                        c.image || "",
+                      ]),
+                    ])
+                  }
+                >
+                  <Download size={14} /> Exporter Excel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setCategoryCoverUrl("");
+                    setCreateCategoryOpen(true);
+                  }}
+                >
+                  <Plus size={14} /> Créer une catégorie
+                </Button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: "18px", marginTop: "16px" }}>
+              {(data.categories || [])
+                .filter(
+                  (c) =>
+                    !query ||
+                    c.name.toLowerCase().includes(query.toLowerCase()) ||
+                    (c.description && c.description.toLowerCase().includes(query.toLowerCase()))
+                )
+                .map((c) => {
+                  const prodCount = (data.products || []).filter((p) => p.category === c.name).length;
+                  return (
+                    <div
+                      key={c.id || c.name}
+                      style={{
+                        borderRadius: "14px",
+                        border: "1px solid #ebdcd5",
+                        background: "#fff",
+                        overflow: "hidden",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <div>
+                        {/* COVER PREVIEW */}
+                        <div style={{ position: "relative", height: "140px", backgroundColor: "#3a1919", overflow: "hidden" }}>
+                          {c.image ? (
+                            <img src={c.image} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <div
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                display: "grid",
+                                placeItems: "center",
+                                color: "#e8ded8",
+                                background: "linear-gradient(135deg, #5c1d38, #812c2c)",
+                              }}
+                            >
+                              <Boxes size={36} />
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)",
+                            }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: "10px",
+                              left: "14px",
+                              right: "14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-end",
+                              color: "#fff",
+                            }}
+                          >
+                            <strong style={{ fontSize: "17px", textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
+                              {c.name}
+                            </strong>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: "999px",
+                                background: "rgba(255,255,255,0.25)",
+                                backdropFilter: "blur(4px)",
+                              }}
+                            >
+                              {prodCount} pièce{prodCount > 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ padding: "14px 16px" }}>
+                          <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6a544e", minHeight: "36px", lineHeight: "1.4" }}>
+                            {c.description || "Aucune description renseignée."}
+                          </p>
+                          <div style={{ fontSize: "12px", color: "#8a756e", display: "flex", justifyContent: "space-between" }}>
+                            <span>
+                              Slug: <code>{c.slug}</code>
+                            </span>
+                            <span>
+                              Ordre: <b>{c.position || 0}</b>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          borderTop: "1px solid #f2e9e4",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => handleDeleteCategory(c)}
+                          title="Supprimer la catégorie"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <a
+                            href={`/collection?cat=${encodeURIComponent(c.name)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: "6px",
+                              border: "1px solid #ebdcd5",
+                              background: "#fff",
+                              color: "#6a544e",
+                              textDecoration: "none",
+                              fontSize: "12px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <ExternalLink size={12} /> Voir
+                          </a>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => {
+                              setSelectedCategory(c);
+                              setCategoryCoverUrl(c.image || "");
+                            }}
+                          >
+                            <Edit size={13} /> Modifier
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            {!(data.categories || []).length && (
+              <div style={{ textAlign: "center", padding: "48px 20px", color: "#888" }}>
+                <Boxes size={40} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
+                <p>Aucune catégorie enregistrée.</p>
+              </div>
+            )}
+          </>
+        )}
+
+                {/* UTILISATEURS / USERS SECTION */}
         {section === "users" && (
           <>
             <div className="admin-toolbar" style={{ flexWrap: "wrap", gap: "12px" }}>
