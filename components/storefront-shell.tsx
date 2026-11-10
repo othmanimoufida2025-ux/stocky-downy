@@ -14,10 +14,10 @@ export function StorefrontFooter() {
         <p>Le style continue. Les pièces aussi.</p>
       </div>
       <nav>
-        <Link href="/collection">Collection</Link>
-        <Link href="/boutiques">Boutiques</Link>
+        <Link href="/collection">Toute la collection</Link>
+        <Link href="/boutiques">Nos boutiques</Link>
         <Link href="/vendeur/demarrage">Vendre sur Stocky</Link>
-        <Link href="/suivi">Suivi de commande</Link>
+        <Link href="/suivi">Suivre ma commande</Link>
       </nav>
       <div className="sf-footer-socials">
         <a

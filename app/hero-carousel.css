@@ -1,0 +1,310 @@
+/* ══════════════════════════════════════════════════════════════════
+   Hero Carousel — full-bleed category image background
+   Text overlaid with dark vignette for readability.
+   Palette: matches existing site tokens (--sd-* vars)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Make the hero full-width / full-bleed ───────────────────────── */
+.home-hero-full {
+  /* Override the constrained grid from route-pages.css */
+  width: 100% !important;
+  min-width: 100%;
+  max-width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  /* Single column — carousel fills everything */
+  display: block !important;
+  min-height: clamp(560px, 88vh, 980px);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Carousel wrapper ─────────────────────────────────────────────── */
+.hc-wrap {
+  position: relative;
+  width: 100%;
+  min-height: clamp(560px, 88vh, 980px);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* ── Background image layer ──────────────────────────────────────── */
+.hc-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hc-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s cubic-bezier(.4, 0, .2, 1);
+  will-change: opacity;
+}
+
+.hc-slide-active {
+  opacity: 1;
+  z-index: 2;
+}
+
+.hc-slide-prev {
+  opacity: 0;
+  z-index: 1;
+}
+
+.hc-slide-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  /* Slow Ken-Burns zoom on the active slide */
+  transform: scale(1.07);
+  transition: transform 10s cubic-bezier(.25, 0, .15, 1);
+  display: block;
+}
+
+.hc-slide-active .hc-slide-img {
+  transform: scale(1);
+}
+
+/* ── Dark vignette for text safety ───────────────────────────────── */
+.hc-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  /* Strong gradient: very dark at left (text side) + dark at top + dark at bottom */
+  background:
+    /* left column text vignette */
+    linear-gradient(
+      to right,
+      rgba(10, 8, 7, 0.82) 0%,
+      rgba(10, 8, 7, 0.60) 42%,
+      rgba(10, 8, 7, 0.18) 72%,
+      rgba(10, 8, 7, 0.0) 100%
+    ),
+    /* top edge darkening */
+    linear-gradient(
+      to bottom,
+      rgba(10, 8, 7, 0.55) 0%,
+      rgba(10, 8, 7, 0.0) 32%
+    ),
+    /* bottom vignette */
+    linear-gradient(
+      to top,
+      rgba(10, 8, 7, 0.75) 0%,
+      rgba(10, 8, 7, 0.0) 42%
+    );
+  pointer-events: none;
+}
+
+/* ── Hero copy — absolute on top of everything ───────────────────── */
+.hc-content {
+  position: relative;
+  z-index: 10;
+  width: min(1400px, 94%);
+  margin: 0 auto;
+  padding: clamp(100px, 14vh, 160px) 0 clamp(80px, 10vh, 130px);
+  /* Max copy width — left half */
+  max-width: min(680px, 50%);
+  margin-left: max(3vw, calc((100% - 1400px) / 2 + 20px));
+}
+
+/* ── Override text colours for the dark hero ─────────────────────── */
+.home-hero-full .home-copy > span {
+  color: var(--sd-saffron);
+}
+
+.home-hero-full .home-copy h1 {
+  color: #EDE7DC;
+  /* slightly larger on the full-bleed hero */
+  font-size: clamp(52px, 7vw, 108px);
+  margin: 18px 0 22px;
+  /* text shadow for extra legibility */
+  text-shadow:
+    0 2px 24px rgba(0, 0, 0, 0.55),
+    0 1px 4px  rgba(0, 0, 0, 0.6);
+}
+
+.home-hero-full .home-copy > p {
+  color: rgba(237, 231, 220, 0.88);
+  font-size: clamp(15px, 1.6vw, 18px);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  max-width: 52ch;
+}
+
+/* ── Action buttons on dark hero ─────────────────────────────────── */
+.home-hero-full .home-actions a:first-child {
+  background: var(--sd-wine);
+  color: #fff;
+  box-shadow: 0 8px 28px rgba(125, 36, 44, 0.45);
+}
+
+.home-hero-full .home-actions a + a {
+  background: rgba(255, 250, 246, 0.12);
+  color: #EDE7DC;
+  border: 1px solid rgba(237, 231, 220, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.home-hero-full .home-actions a + a:hover {
+  background: rgba(255, 250, 246, 0.22);
+  border-color: rgba(237, 231, 220, 0.6);
+}
+
+/* ── Proof badges on dark hero ───────────────────────────────────── */
+.home-hero-full .home-proof span {
+  color: rgba(237, 231, 220, 0.75);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+.home-hero-full .home-proof svg {
+  color: var(--sd-saffron);
+}
+
+/* ── Slide dots ───────────────────────────────────────────────────── */
+.hc-dots {
+  position: absolute;
+  bottom: clamp(24px, 4vh, 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.hc-dot {
+  width: 24px;
+  height: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(237, 231, 220, 0.3);
+  cursor: pointer;
+  transition: background 0.3s, width 0.3s cubic-bezier(.22, 1, .36, 1);
+  padding: 0;
+}
+
+.hc-dot-active {
+  width: 44px;
+  background: #EDE7DC;
+}
+
+/* ── Category label — bottom right corner ────────────────────────── */
+.hc-cat-label {
+  position: absolute;
+  bottom: clamp(24px, 4vh, 44px);
+  right: max(3vw, 24px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.hc-cat-name {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: clamp(12px, 1.2vw, 15px);
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: rgba(237, 231, 220, 0.9);
+  text-transform: uppercase;
+  animation: hc-fadein 0.5s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.hc-cat-count {
+  font-size: 11px;
+  color: rgba(237, 231, 220, 0.5);
+  letter-spacing: .08em;
+}
+
+@keyframes hc-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1050px) {
+  .hc-content {
+    max-width: min(620px, 60%);
+  }
+}
+
+@media (max-width: 760px) {
+  .home-hero-full,
+  .hc-wrap {
+    min-height: clamp(480px, 80vh, 720px);
+  }
+
+  .hc-content {
+    max-width: 90%;
+    margin-left: max(4vw, 20px);
+    padding-top: clamp(80px, 12vh, 120px);
+    padding-bottom: clamp(60px, 8vh, 100px);
+  }
+
+  .hc-vignette {
+    /* On mobile, darken more uniformly since text stacks */
+    background:
+      linear-gradient(
+        to right,
+        rgba(10, 8, 7, 0.78) 0%,
+        rgba(10, 8, 7, 0.60) 60%,
+        rgba(10, 8, 7, 0.18) 100%
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(10, 8, 7, 0.60) 0%,
+        rgba(10, 8, 7, 0.0) 30%
+      ),
+      linear-gradient(
+        to top,
+        rgba(10, 8, 7, 0.80) 0%,
+        rgba(10, 8, 7, 0.0) 45%
+      );
+  }
+
+  .home-hero-full .home-copy h1 {
+    font-size: clamp(44px, 11vw, 70px);
+  }
+}
+
+@media (max-width: 500px) {
+  .home-hero-full,
+  .hc-wrap {
+    min-height: clamp(440px, 75vh, 640px);
+  }
+
+  .hc-content {
+    max-width: 92%;
+    margin-left: 4vw;
+    padding-top: clamp(70px, 10vh, 110px);
+  }
+
+  .home-hero-full .home-copy h1 {
+    font-size: clamp(38px, 13vw, 60px);
+  }
+
+  .hc-cat-label {
+    display: none; /* hide on very small screens to avoid clutter */
+  }
+}
+
+/* ── Reduced motion — disable Ken-Burns and crossfade ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  .hc-slide,
+  .hc-slide-img {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  .hc-cat-name {
+    animation: none;
+  }
+}

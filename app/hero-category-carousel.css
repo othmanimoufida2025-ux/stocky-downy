@@ -1,0 +1,463 @@
+/* ══════════════════════════════════════════════════════════════════
+   HERO CATEGORY CAROUSEL — Dark Label Portal Aesthetic
+   Palette: ground #0A0C0E · ink #EDE7DC · muted #9EA5A8 · #6C7378
+            amber #E8913C · teal #2E6B72 · hairlines rgba(237,231,220,.13)
+   Typography: Syne (headings) · Sora (body & labels)
+   ══════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Sora:wght@400;500;600;700&display=swap');
+
+/* ── Carousel root — fits completely above fold on first open ───── */
+.hcc-root {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 116px);
+  height: calc(100dvh - 116px);
+  min-height: 520px;
+  max-height: 820px;
+  overflow: hidden;
+  background: #0A0C0E;
+  isolation: isolate;
+  touch-action: pan-y;
+  font-family: 'Sora', system-ui, -apple-system, sans-serif;
+  color: #EDE7DC;
+}
+
+/* ── Background slides ─────────────────────────────────────────── */
+.hcc-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity .85s cubic-bezier(.4, 0, .2, 1), transform .85s cubic-bezier(.4, 0, .2, 1);
+  will-change: opacity, transform;
+}
+
+/* ── Layered Veils for Contrast & Depth ────────────────────────── */
+/* Left veil behind the brand copy */
+.hcc-veil-left {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to right,
+    rgba(10, 12, 14, 0.94) 0%,
+    rgba(10, 12, 14, 0.82) 34%,
+    rgba(10, 12, 14, 0.35) 60%,
+    transparent 78%
+  );
+  pointer-events: none;
+}
+
+/* Bottom veil — rises high enough to cradle the elevated bottom bar */
+.hcc-veil-bottom {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 58%;
+  z-index: 1;
+  background: linear-gradient(
+    to top,
+    rgba(10, 12, 14, 0.98) 0%,
+    rgba(10, 12, 14, 0.88) 32%,
+    rgba(10, 12, 14, 0.42) 65%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Vignette on perimeter */
+.hcc-veil-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse at 65% 40%, transparent 40%, rgba(10, 12, 14, 0.45) 100%);
+  pointer-events: none;
+}
+
+/* ── Accent dots (amber + teal) ────────────────────────────────── */
+.hcc-dot {
+  position: absolute;
+  z-index: 2;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: hcc-dot-pulse 3s ease-in-out infinite alternate;
+}
+.hcc-dot-amber {
+  top: 45%;
+  left: 54%;
+  background: #E8913C;
+  box-shadow: 0 0 12px 3px rgba(232, 145, 60, 0.55);
+}
+.hcc-dot-teal {
+  top: 70%;
+  right: 12%;
+  background: #2E6B72;
+  box-shadow: 0 0 12px 3px rgba(46, 107, 114, 0.45);
+  animation-delay: 1.5s;
+}
+@keyframes hcc-dot-pulse {
+  from { transform: scale(1); opacity: .7; }
+  to   { transform: scale(1.4); opacity: 1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TOP-LEFT: Brand Copy & Actions
+   Anchored cleanly near top, generous breathing room
+   ══════════════════════════════════════════════════════════════════ */
+.hcc-hero-copy {
+  position: absolute;
+  z-index: 4;
+  top: clamp(14px, 2.4vh, 30px);
+  left: 0;
+  width: min(600px, 54%);
+  padding: 0 clamp(24px, 5vw, 64px);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.hcc-hero-copy > * { pointer-events: auto; }
+
+.hcc-h1 {
+  font-family: 'Syne', system-ui, -apple-system, sans-serif;
+  font-size: clamp(34px, 4.4vw, 58px);
+  font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: -0.04em;
+  color: #FFFFFF;
+  margin: 0 0 12px;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.6);
+}
+.hcc-h1-dim {
+  color: rgba(237, 231, 220, 0.72);
+}
+
+.hcc-lead {
+  font-size: clamp(14px, 1.15vw, 16px);
+  line-height: 1.5;
+  color: #EDE7DC;
+  margin: 0 0 18px;
+  max-width: 48ch;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+}
+
+.hcc-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.hcc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #E8913C;
+  color: #0A0C0E;
+  font-weight: 700;
+  font-size: 13.5px;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 18px rgba(232, 145, 60, 0.35);
+  transition: transform .2s, box-shadow .2s, background .2s;
+}
+.hcc-btn-primary:hover {
+  background: #f09f4e;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(232, 145, 60, 0.5);
+}
+
+.hcc-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: rgba(237, 231, 220, 0.1);
+  color: #EDE7DC;
+  border: 1px solid rgba(237, 231, 220, 0.22);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-decoration: none;
+  backdrop-filter: blur(12px);
+  transition: background .2s, border-color .2s;
+}
+.hcc-btn-secondary:hover {
+  background: rgba(237, 231, 220, 0.18);
+  border-color: rgba(237, 231, 220, 0.4);
+}
+
+.hcc-proof {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: #9EA5A8;
+  font-size: 12px;
+}
+.hcc-proof span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hcc-proof svg {
+  color: #E8913C;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BOTTOM ZONE: Elevated Higher for Instant Above-the-Fold Visibility
+   "Maison & Déco / Voir la sélection" + Thumbnails & Controls
+   ══════════════════════════════════════════════════════════════════ */
+.hcc-bottom {
+  position: absolute;
+  z-index: 4;
+  /* LIFTED COMFORTABLY HIGHER so it is NEVER hidden on first open */
+  bottom: clamp(40px, 7vh, 76px);
+  left: 0;
+  right: 0;
+  padding: 0 clamp(24px, 5vw, 64px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  pointer-events: none;
+}
+.hcc-bottom > * { pointer-events: auto; }
+
+/* ── Category Info (bottom-left) ───────────────────────────────── */
+.hcc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hcc-cat-title {
+  font-family: 'Syne', system-ui, -apple-system, sans-serif;
+  font-size: clamp(24px, 3.2vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #FFFFFF;
+  margin: 0;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85);
+  animation: hcc-cat-enter .45s cubic-bezier(.22, 1, .36, 1) both;
+}
+@keyframes hcc-cat-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hcc-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9EA5A8;
+  margin: 2px 0 0;
+}
+
+.hcc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #E8913C;
+  text-decoration: none;
+  transition: gap .2s, color .2s;
+  align-self: flex-start;
+}
+.hcc-link:hover {
+  gap: 10px;
+  color: #FFFFFF;
+}
+
+/* ── Right Controls: Thumbnails Strip + Arrows/Pips ────────────── */
+.hcc-right-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  flex: none;
+}
+
+/* Thumbnails strip */
+.hcc-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: min(560px, 48vw);
+  padding: 4px;
+}
+.hcc-thumbs::-webkit-scrollbar { display: none; }
+
+.hcc-thumb {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  background: rgba(16, 19, 23, 0.7);
+  border: 1px solid rgba(237, 231, 220, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .25s, transform .25s, box-shadow .25s;
+  padding: 0;
+  width: 66px;
+  backdrop-filter: blur(6px);
+}
+.hcc-thumb img {
+  width: 66px;
+  height: 48px;
+  object-fit: cover;
+  display: block;
+  transition: filter .3s, transform .3s;
+  filter: brightness(0.55) saturate(0.4);
+}
+.hcc-thumb span {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9EA5A8;
+  padding: 4px 3px;
+  line-height: 1.15;
+  text-align: center;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62px;
+}
+.hcc-thumb:hover {
+  border-color: rgba(232, 145, 60, 0.5);
+  transform: translateY(-2px);
+}
+.hcc-thumb:hover img {
+  filter: brightness(0.85) saturate(0.85);
+}
+.hcc-thumb-active {
+  border-color: #E8913C;
+  box-shadow: 0 0 14px rgba(232, 145, 60, 0.35);
+}
+.hcc-thumb-active img {
+  filter: brightness(1) saturate(1);
+}
+.hcc-thumb-active span {
+  color: #E8913C;
+}
+
+/* Arrows + pips row */
+.hcc-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hcc-arrow {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(237, 231, 220, 0.2);
+  border-radius: 50%;
+  background: rgba(16, 19, 23, 0.7);
+  color: #EDE7DC;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, color .2s;
+  backdrop-filter: blur(8px);
+  flex: none;
+}
+.hcc-arrow:hover {
+  border-color: #E8913C;
+  background: rgba(232, 145, 60, 0.2);
+  color: #E8913C;
+}
+
+.hcc-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.hcc-pip {
+  width: 16px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: rgba(237, 231, 220, 0.22);
+  border: none;
+  cursor: pointer;
+  transition: width .3s cubic-bezier(.22, 1, .36, 1), background .3s;
+  padding: 0;
+}
+.hcc-pip-active {
+  width: 32px;
+  background: #E8913C;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Responsive Adjustments
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .hcc-hero-copy { width: min(560px, 75%); }
+  .hcc-thumbs { max-width: 38vw; }
+}
+
+@media (max-width: 768px) {
+  .hcc-root {
+    height: calc(100svh - 100px);
+    min-height: 520px;
+  }
+  .hcc-hero-copy {
+    width: 100%;
+    top: 16px;
+    padding: 0 20px;
+  }
+  .hcc-h1 {
+    font-size: clamp(30px, 8.5vw, 46px);
+  }
+  .hcc-lead {
+    font-size: 13.5px;
+  }
+  .hcc-bottom {
+    bottom: 24px;
+    padding: 0 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .hcc-thumbs { display: none; }
+  .hcc-right-controls { align-self: flex-start; }
+}
+
+@media (max-width: 480px) {
+  .hcc-root {
+    height: calc(100svh - 96px);
+    min-height: 500px;
+  }
+  .hcc-bottom { bottom: 20px; padding: 0 16px; }
+  .hcc-h1 { font-size: clamp(26px, 8vw, 38px); }
+  .hcc-actions { gap: 8px; }
+  .hcc-btn-primary, .hcc-btn-secondary { font-size: 12px; padding: 0 16px; height: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hcc-slide { transition: opacity .3s linear; }
+  .hcc-dot { animation: none; }
+  .hcc-cat-title { animation: none; }
+}

@@ -6,6 +6,9 @@ import './soul.css';
 import './storefront.css';
 import './redesign.css';
 import './route-pages.css';
+import './category-deck.css';
+import './hero-category-carousel.css';
+import './enhance.css';
 import Reveal from '@/components/reveal';
 
 export const metadata: Metadata = {

@@ -1,0 +1,1282 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   STOCKY DOWNY — Full Enhancement Layer
+   Loads last. Refines every surface of the site with premium motion,
+   micro-interactions, typographic polish and cohesive depth without
+   changing a single line of HTML.
+
+   Palette reference (unified across all existing CSS layers):
+     chalk  #fffaf6   paper  #fff      ink    #241b1a   muted  #74645f
+     wine   #7d242c   dark   #211918   saffron#ffbd59   soft   #f6ece5
+     line   rgba(84,23,28,.16)         shadow 0 20px 60px rgba(65,29,25,.1)
+     amber  #E8913C   teal   #2E6B72   (deck section)
+
+   Easing vocabulary
+     --e-out   cubic-bezier(.22,1,.36,1)   — overshoot / spring exits
+     --e-in    cubic-bezier(.55,0,1,.45)   — fast accelerations
+     --e-io    cubic-bezier(.4,0,.2,1)     — smooth in-out (Material)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 0. Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --e-out:  cubic-bezier(.22, 1, .36, 1);
+  --e-in:   cubic-bezier(.55, 0, 1, .45);
+  --e-io:   cubic-bezier(.4, 0, .2, 1);
+
+  /* Refined shadow scale */
+  --sh-xs:  0 1px 3px rgba(65,29,25,.08), 0 1px 2px rgba(65,29,25,.06);
+  --sh-sm:  0 4px 14px rgba(65,29,25,.09);
+  --sh-md:  0 12px 36px rgba(65,29,25,.11);
+  --sh-lg:  0 24px 64px rgba(65,29,25,.14);
+  --sh-xl:  0 40px 100px rgba(65,29,25,.18);
+
+  /* Wine glow for buttons */
+  --wine-glow: 0 8px 28px rgba(125,36,44,.26);
+}
+
+/* ── 1. Global baseline ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection colour */
+::selection { background: rgba(125,36,44,.18); color: #241b1a; }
+
+/* Focus ring — unified, beautiful */
+:focus-visible {
+  outline: 2px solid #7d242c;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Smooth image rendering globally */
+img { image-rendering: -webkit-optimize-contrast; }
+
+/* ── 2. Announcement bar ───────────────────────────────────────────────────── */
+.sf-announcement {
+  font-size: 11.5px;
+  letter-spacing: .03em;
+  background: #1a1211;
+  /* subtle left-to-right warm shimmer on load */
+  animation: bar-in .6s var(--e-out) both;
+}
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: none; }
+}
+.sf-announcement strong {
+  color: #ffbd59;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.sf-announcement a {
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,189,89,.35);
+  transition: border-color .2s, color .2s;
+}
+.sf-announcement a:hover { border-color: #ffbd59; color: #ffbd59; }
+
+/* ── 3. Header ─────────────────────────────────────────────────────────────── */
+.sf-header {
+  background: rgba(255,250,246,.94) !important;
+  backdrop-filter: blur(22px) saturate(1.5) !important;
+  border-bottom: 1px solid rgba(84,23,28,.1) !important;
+  transition: box-shadow .4s var(--e-io), background .4s;
+  /* slide down on load */
+  animation: header-in .55s var(--e-out) .1s both;
+}
+@keyframes header-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Logo — subtle scale on hover */
+.sf-brand img {
+  transition: transform .4s var(--e-out), opacity .3s;
+}
+.sf-brand:hover img { transform: scale(1.04); }
+
+/* Nav links — underline grow from center */
+.sf-header nav a {
+  position: relative;
+  font-weight: 600;
+  letter-spacing: .01em;
+  transition: color .25s;
+}
+.sf-header nav a::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  right: 50%;
+  height: 1.5px;
+  background: #7d242c;
+  border-radius: 999px;
+  transition: left .3s var(--e-out), right .3s var(--e-out);
+}
+.sf-header nav a:hover { color: #7d242c; }
+.sf-header nav a:hover::after { left: 0; right: 0; }
+
+/* Cart button — premium pulse */
+.sf-cart {
+  background: #7d242c !important;
+  border-radius: 999px !important;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s !important;
+  position: relative;
+  overflow: hidden;
+}
+.sf-cart::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 60% 40%, rgba(255,255,255,.18), transparent 60%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.sf-cart:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: var(--wine-glow) !important;
+}
+.sf-cart:hover::before { opacity: 1; }
+.sf-cart:active { transform: scale(.96) !important; }
+.sf-cart b {
+  background: #ffbd59 !important;
+  color: #241b1a !important;
+  transition: transform .35s var(--e-out) !important;
+}
+.sf-cart:hover b { transform: scale(1.18) !important; }
+
+/* Account link */
+.sf-account {
+  font-weight: 600;
+  transition: color .25s, transform .3s var(--e-out);
+}
+.sf-account:hover { color: #7d242c; transform: translateY(-1px); }
+
+/* ── 4. Hero section ───────────────────────────────────────────────────────── */
+.home-hero {
+  /* Richer page-load animation orchestration */
+}
+
+/* Eyebrow badge — fade + slide */
+.home-copy > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #7d242c;
+  /* pill shape */
+  background: rgba(125,36,44,.07);
+  padding: 5px 12px 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(125,36,44,.14);
+  animation: hero-child-in .8s var(--e-out) .05s both;
+}
+.home-copy > span svg { width: 15px; color: #7d242c; }
+
+/* H1 — dramatic entrance */
+.home-copy h1 {
+  animation: hero-child-in .9s var(--e-out) .18s both;
+  /* Subtle text shadow for depth on the large display */
+  text-shadow: 0 2px 0 rgba(36,27,26,.04);
+}
+
+/* Lead paragraph */
+.home-copy > p {
+  animation: hero-child-in .85s var(--e-out) .3s both;
+  font-size: 17.5px;
+  line-height: 1.72;
+}
+
+/* Action buttons row */
+.home-actions {
+  animation: hero-child-in .85s var(--e-out) .42s both;
+}
+
+/* Proof row */
+.home-proof {
+  animation: hero-child-in .85s var(--e-out) .52s both;
+}
+.home-proof span {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #74645f;
+  transition: color .25s;
+}
+.home-proof span:hover { color: #7d242c; }
+.home-proof svg { color: #7d242c; }
+
+@keyframes hero-child-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Primary CTA */
+.home-actions a:first-child {
+  background: #7d242c;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s !important;
+}
+.home-actions a:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 60% 40%, rgba(255,255,255,.2), transparent 65%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.home-actions a:first-child:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--wine-glow);
+}
+.home-actions a:first-child:hover::after { opacity: 1; }
+.home-actions a:first-child:active { transform: scale(.97); box-shadow: none; }
+
+/* Outline CTA */
+.home-actions a + a {
+  background: transparent !important;
+  color: #7d242c !important;
+  border: 1.5px solid rgba(125,36,44,.4) !important;
+  transition: transform .35s var(--e-out), border-color .25s, background .25s !important;
+  backdrop-filter: blur(4px);
+}
+.home-actions a + a:hover {
+  transform: translateY(-2px);
+  border-color: #7d242c !important;
+  background: rgba(125,36,44,.05) !important;
+}
+.home-actions a + a:active { transform: scale(.97); }
+
+/* SVG arrows inside all CTAs travel right on hover */
+.home-actions a svg,
+.home-seller > a svg,
+.section-title a svg,
+.home-categories > a > span svg,
+.cdk-link svg {
+  transition: transform .35s var(--e-out);
+}
+.home-actions a:hover svg,
+.home-seller > a:hover svg,
+.section-title a:hover svg,
+.home-categories > a:hover > span svg { transform: translateX(5px); }
+
+/* Hero visual (arch image) — reveal animation */
+.home-visual {
+  animation: visual-in 1.1s var(--e-out) .25s both;
+  transition: transform .6s var(--e-out), box-shadow .6s var(--e-out) !important;
+}
+.home-visual:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: var(--sh-xl) !important;
+}
+@keyframes visual-in {
+  from { opacity: 0; transform: translateX(32px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Image inside visual — slow parallax on hover */
+.home-visual > img {
+  transition: transform 1.2s var(--e-out) !important;
+}
+.home-visual:hover > img { transform: scale(1.045); }
+
+/* Caption label inside visual */
+.home-visual > div {
+  backdrop-filter: blur(14px) saturate(1.2);
+  background: rgba(26,18,17,.88) !important;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px !important;
+  transition: transform .4s var(--e-out);
+}
+.home-visual:hover > div { transform: translateY(-3px); }
+.home-visual span { letter-spacing: .05em; font-size: 11px; }
+.home-visual strong {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+/* ── 5. Category Deck section (dark label) ─────────────────────────────────── */
+.cdk-section {
+  /* Richer noise texture overlay — purely decorative */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* Accent dots — animate floating */
+.cdk-dot-amber {
+  animation: dot-float 6s ease-in-out infinite;
+}
+.cdk-dot-teal {
+  animation: dot-float 8s ease-in-out 1s infinite reverse;
+}
+@keyframes dot-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-8px) scale(1.3); }
+}
+
+/* Info panel — stagger children on load */
+.cdk-eyebrow  { animation: hero-child-in .7s var(--e-out) .1s both; }
+.cdk-heading  { animation: hero-child-in .8s var(--e-out) .2s both; }
+.cdk-count    { animation: hero-child-in .7s var(--e-out) .3s both; }
+.cdk-link     { animation: hero-child-in .7s var(--e-out) .38s both; }
+.cdk-pips     { animation: hero-child-in .6s var(--e-out) .44s both; }
+.cdk-arrows   { animation: hero-child-in .6s var(--e-out) .5s both; }
+
+/* Deck container — reveal from right */
+.cdk-deck     { animation: deck-in .9s var(--e-out) .3s both; }
+@keyframes deck-in {
+  from { opacity: 0; transform: translateX(28px) rotate(2deg); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Cards — richer shadow & border */
+.cdk-card {
+  border-radius: 14px !important;
+  border: 1px solid rgba(237,231,220,.07);
+  box-shadow:
+    0 24px 70px rgba(0,0,0,.62),
+    0 6px 16px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+
+/* Top card image — very slight warm colour grade */
+.cdk-card-top .cdk-card-img {
+  filter: brightness(.92) saturate(1.1) contrast(1.03) !important;
+}
+
+/* Card footer gradient — taller, richer */
+.cdk-card-label {
+  padding: 32px 18px 18px !important;
+  background: linear-gradient(
+    to top,
+    rgba(8,10,12,.96) 0%,
+    rgba(8,10,12,.6) 55%,
+    transparent 100%
+  ) !important;
+}
+.cdk-card-name {
+  font-size: 16px !important;
+  letter-spacing: -.015em !important;
+}
+
+/* Arrow buttons — hover lift */
+.cdk-arrow {
+  transition: border-color .25s, color .25s, background .25s, transform .3s var(--e-out) !important;
+}
+.cdk-arrow:hover { transform: scale(1.1); }
+.cdk-arrow:active { transform: scale(.93); }
+
+/* Pip — smooth active transition already exists, just ensure width animates */
+.cdk-pip { transition: background .3s, width .35s var(--e-out) !important; }
+
+/* Discover link — refined hover state */
+.cdk-link {
+  transition: color .25s, border-color .25s, gap .3s var(--e-out) !important;
+}
+.cdk-link:hover { gap: 11px !important; }
+
+/* ── 6. Metrics strip ──────────────────────────────────────────────────────── */
+.home-metrics {
+  background: rgba(255,250,246,.5);
+}
+.home-metrics > div {
+  transition: background .3s, box-shadow .3s;
+  position: relative;
+}
+.home-metrics > div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: rgba(125,36,44,.03);
+  transition: opacity .3s;
+}
+.home-metrics > div:hover::after { opacity: 1; }
+
+/* Numbers count-up feel — just typography refinement */
+.home-metrics strong {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+  color: #7d242c !important;
+  line-height: 1;
+  /* Slide up on first reveal */
+  animation: count-in .7s var(--e-out) both;
+}
+.home-metrics > div:nth-child(1) strong { animation-delay: .05s; }
+.home-metrics > div:nth-child(2) strong { animation-delay: .15s; }
+.home-metrics > div:nth-child(3) strong { animation-delay: .25s; }
+.home-metrics > div:nth-child(4) strong { animation-delay: .35s; }
+@keyframes count-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.home-metrics svg {
+  color: #7d242c !important;
+  transition: transform .4s var(--e-out);
+}
+.home-metrics > div:hover svg { transform: scale(1.2) rotate(-5deg); }
+
+/* ── 7. Section headers ────────────────────────────────────────────────────── */
+.section-title {
+  align-items: flex-end;
+  margin-bottom: 28px !important;
+}
+.section-title span {
+  display: inline-block;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #7d242c;
+  margin-bottom: 6px;
+}
+.section-title h2 {
+  font-size: clamp(28px, 3.5vw, 44px) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+  margin: 0;
+  color: #241b1a;
+}
+.section-title > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #7d242c;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(125,36,44,.25);
+  padding-bottom: 2px;
+  transition: gap .3s var(--e-out), border-color .25s;
+  white-space: nowrap;
+}
+.section-title > a:hover { gap: 10px; border-color: #7d242c; }
+
+/* ── 8. Product grid cards ─────────────────────────────────────────────────── */
+.sf-grid { gap: 24px 20px !important; }
+
+.sf-product {
+  background: #fff !important;
+  border: 1px solid rgba(84,23,28,.1) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  transition:
+    transform   .45s var(--e-out),
+    box-shadow  .45s var(--e-out),
+    border-color .3s !important;
+  will-change: transform;
+}
+.sf-product:hover {
+  transform: translateY(-6px) !important;
+  box-shadow: var(--sh-lg) !important;
+  border-color: rgba(84,23,28,.18) !important;
+}
+.sf-product:active { transform: translateY(-2px) scale(.99) !important; }
+
+/* Product image */
+.sf-product-image {
+  height: 300px !important;
+  overflow: hidden;
+  position: relative;
+  background: #f5ece4 !important;
+}
+.sf-product-image::after {
+  content: "Voir →";
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(255,250,246,.92);
+  backdrop-filter: blur(10px);
+  color: #7d242c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 7px 18px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity .3s, transform .35s var(--e-out);
+  pointer-events: none;
+  white-space: nowrap;
+  border: 1px solid rgba(125,36,44,.18);
+}
+.sf-product:hover .sf-product-image::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.sf-product-image img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  transition: transform .8s var(--e-out) !important;
+}
+.sf-product:hover .sf-product-image img { transform: scale(1.06) !important; }
+
+/* Product body */
+.sf-product-body {
+  padding: 16px 18px 18px !important;
+  gap: 10px !important;
+}
+.sf-product h2 {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  letter-spacing: -.02em;
+  line-height: 1.3;
+  color: #241b1a !important;
+  margin: 0 !important;
+  transition: color .25s;
+}
+.sf-product:hover h2 { color: #7d242c !important; }
+.sf-shop-name {
+  font-size: 11.5px !important;
+  color: #7d242c !important;
+  font-weight: 600 !important;
+  letter-spacing: .02em;
+  transition: opacity .25s;
+}
+.sf-product:hover .sf-shop-name { opacity: .8; }
+.sf-product-meta strong {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #7d242c !important;
+  letter-spacing: -.025em;
+}
+.sf-product-meta span {
+  font-size: 11px !important;
+  color: #a08880 !important;
+}
+.sf-product .button {
+  height: 42px !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  font-size: 12.5px !important;
+  transition: transform .3s var(--e-out), box-shadow .3s var(--e-out), background .25s !important;
+  position: relative;
+  overflow: hidden;
+}
+.sf-product .button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 60% 40%, rgba(255,255,255,.18), transparent 65%);
+  opacity: 0;
+  transition: opacity .25s;
+}
+.sf-product .button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(125,36,44,.22) !important;
+}
+.sf-product .button:hover::after { opacity: 1; }
+.sf-product .button:active { transform: scale(.97); }
+
+/* ── 9. Category arch tiles ────────────────────────────────────────────────── */
+.home-categories { gap: 22px !important; }
+
+.home-categories > a {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.category-arch {
+  height: 340px !important;
+  border-radius: 999px 999px 8px 8px !important;
+  overflow: hidden;
+  position: relative;
+  transition: transform .55s var(--e-out), box-shadow .55s var(--e-out) !important;
+  box-shadow: var(--sh-sm);
+}
+.home-categories > a:hover .category-arch {
+  transform: translateY(-10px) !important;
+  box-shadow: var(--sh-lg) !important;
+}
+
+/* Image inside arch */
+.category-arch img {
+  transition: transform 1s var(--e-out), filter .5s !important;
+  filter: brightness(.88) saturate(1.05);
+}
+.home-categories > a:hover .category-arch img {
+  transform: scale(1.07) !important;
+  filter: brightness(.8) saturate(1.1);
+}
+
+/* Overlay that appears on hover */
+.category-arch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(125,36,44,.18);
+  opacity: 0;
+  transition: opacity .4s;
+}
+.home-categories > a:hover .category-arch::after { opacity: 1; }
+
+/* Category label */
+.home-categories > a > strong {
+  display: block !important;
+  margin-top: 14px !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.025em;
+  color: #241b1a;
+  transition: color .25s;
+}
+.home-categories > a:hover > strong { color: #7d242c; }
+
+.home-categories > a > span {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  color: #74645f !important;
+  font-size: 12.5px !important;
+  font-weight: 500;
+  transition: gap .3s var(--e-out), color .25s !important;
+}
+.home-categories > a:hover > span {
+  gap: 9px !important;
+  color: #7d242c !important;
+}
+.home-categories > a > span svg { transition: transform .3s var(--e-out); }
+.home-categories > a:hover > span svg { transform: translateX(4px); }
+
+/* Product count badge on arch */
+.category-arch span[style] {
+  backdrop-filter: blur(8px) !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+}
+
+/* ── 10. Seller / CTA banner ───────────────────────────────────────────────── */
+.home-seller {
+  border-radius: 20px;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  position: relative;
+  isolation: isolate;
+  /* Rich text grain overlay */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E"),
+    none !important;
+  overflow: hidden;
+}
+.home-seller > div { position: relative; z-index: 1; }
+.home-seller > a   { position: relative; z-index: 1; }
+
+.home-seller span {
+  font-size: 11px !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.home-seller h2 {
+  font-size: clamp(30px, 3.8vw, 54px) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+  line-height: 1.05;
+}
+.home-seller p {
+  font-size: 16px;
+  line-height: 1.65;
+}
+.home-seller > a {
+  background: #ffbd59 !important;
+  color: #241b1a !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  letter-spacing: .02em;
+  border-radius: 999px !important;
+  padding: 0 28px !important;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s !important;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+.home-seller > a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 65% 35%, rgba(255,255,255,.3), transparent 60%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.home-seller > a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(255,189,89,.35) !important;
+}
+.home-seller > a:hover::after { opacity: 1; }
+.home-seller > a:active { transform: scale(.97); }
+
+/* ── 11. Scroll-reveal system (extends .rv from redesign.css) ──────────────── */
+.rv {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity  .85s var(--e-out),
+    transform .85s var(--e-out) !important;
+  transition-delay: var(--rv-d, 0s);
+}
+.rv.rv-in {
+  opacity: 1;
+  transform: none !important;
+}
+
+/* ── 12. Product / shop cards (collection & boutiques pages) ───────────────── */
+/* Shop cards */
+.shop-card {
+  border: 1px solid rgba(84,23,28,.1) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  transition: transform .4s var(--e-out), box-shadow .4s var(--e-out), border-color .3s !important;
+}
+.shop-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-lg) !important;
+  border-color: rgba(84,23,28,.2) !important;
+}
+.shop-cover img {
+  transition: transform .8s var(--e-out) !important;
+}
+.shop-card:hover .shop-cover img { transform: scale(1.05) !important; }
+.shop-card h2 {
+  font-weight: 800 !important;
+  letter-spacing: -.025em;
+  transition: color .25s;
+}
+.shop-card:hover h2 { color: #7d242c !important; }
+
+/* Shop logo pulse on card hover */
+.shop-logo {
+  transition: transform .4s var(--e-out), box-shadow .4s var(--e-out) !important;
+}
+.shop-card:hover .shop-logo {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 24px rgba(65,29,25,.14) !important;
+}
+
+/* Verified badge */
+.verified {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .03em;
+}
+.verified svg { color: #7d242c; }
+
+/* ── 13. Product detail page ───────────────────────────────────────────────── */
+.gallery-main {
+  transition: box-shadow .4s var(--e-out) !important;
+}
+.gallery-main:hover { box-shadow: var(--sh-md) !important; }
+.gallery-main img { transition: transform 1.2s var(--e-out) !important; }
+.gallery-main:hover img { transform: scale(1.03) !important; }
+
+.product-price {
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+  color: #7d242c !important;
+  line-height: 1;
+}
+
+.buy-controls > .button {
+  height: 52px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  letter-spacing: .02em;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s !important;
+  position: relative;
+  overflow: hidden;
+}
+.buy-controls > .button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wine-glow) !important;
+}
+.buy-controls > .button:active { transform: scale(.97); }
+
+/* Quantity stepper */
+.quantity button {
+  transition: background .2s, color .2s;
+}
+.quantity button:hover { background: #f6ece5; color: #7d242c; }
+
+/* Trust box */
+.trust-box span { font-size: 14px; font-weight: 500; }
+.trust-box svg { color: #7d242c !important; }
+
+/* ── 14. Auth & onboarding pages ───────────────────────────────────────────── */
+.input-icon {
+  border-radius: 10px !important;
+  transition: border-color .25s, box-shadow .25s !important;
+}
+.input-icon:focus-within {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 3px rgba(125,36,44,.1) !important;
+}
+
+.auth-method button {
+  transition: background .25s, color .25s, box-shadow .25s;
+}
+.auth-method .active {
+  box-shadow: var(--sh-sm) !important;
+}
+
+.auth-form > .button {
+  height: 52px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s !important;
+}
+.auth-form > .button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wine-glow) !important;
+}
+.auth-form > .button:active { transform: scale(.97); }
+
+.role-choice button {
+  transition: border-color .25s, box-shadow .25s, transform .3s var(--e-out);
+}
+.role-choice button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh-sm) !important;
+}
+.role-choice .active {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 2.5px rgba(125,36,44,.14) !important;
+}
+
+/* OTP inputs */
+.otp-boxes input:not([type=hidden]) {
+  transition: border-color .25s, box-shadow .25s;
+  font-weight: 800 !important;
+}
+.otp-boxes input:focus {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 3px rgba(125,36,44,.1) !important;
+  outline: none !important;
+}
+
+/* ── 15. Cart & checkout pages ─────────────────────────────────────────────── */
+.cart-item {
+  border-radius: 12px !important;
+  transition: box-shadow .3s, border-color .3s !important;
+}
+.cart-item:hover {
+  box-shadow: var(--sh-sm) !important;
+  border-color: rgba(84,23,28,.18) !important;
+}
+.cart-item > img {
+  border-radius: 8px !important;
+  transition: transform .4s var(--e-out) !important;
+}
+.cart-item:hover > img { transform: scale(1.03) !important; }
+
+.order-summary {
+  border-radius: 16px !important;
+  border: 1px solid rgba(84,23,28,.1) !important;
+  box-shadow: var(--sh-md) !important;
+}
+.order-summary > .button {
+  height: 52px !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out) !important;
+}
+.order-summary > .button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wine-glow) !important;
+}
+
+.checkout-form {
+  border-radius: 16px !important;
+  border: 1px solid rgba(84,23,28,.1) !important;
+}
+.checkout-form input,
+.checkout-form select,
+.checkout-form textarea {
+  border-radius: 10px !important;
+  transition: border-color .25s, box-shadow .25s !important;
+}
+.checkout-form input:focus,
+.checkout-form select:focus,
+.checkout-form textarea:focus {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 3px rgba(125,36,44,.1) !important;
+  outline: none;
+}
+
+/* ── 16. Order tracking timeline ───────────────────────────────────────────── */
+.timeline .done i {
+  box-shadow: 0 4px 14px rgba(125,36,44,.3) !important;
+}
+.timeline i {
+  transition: transform .4s var(--e-out), box-shadow .4s var(--e-out);
+}
+.timeline li:hover i { transform: scale(1.1); }
+
+/* ── 17. Footer ────────────────────────────────────────────────────────────── */
+.sf-footer {
+  background: #1a1211 !important;
+  border-top: 1px solid rgba(237,231,220,.08);
+}
+.sf-footer img {
+  /* SVG has a black background — mix-blend-mode:screen makes black
+     transparent against the dark footer, revealing only the logo marks */
+  mix-blend-mode: screen;
+  filter: none !important;   /* override the brightness(0) invert(1) from storefront.css */
+  opacity: .92;
+  transition: opacity .3s;
+  width: 150px;
+}
+.sf-footer img:hover { opacity: 1; }
+
+.sf-footer nav a {
+  font-size: 13.5px;
+  color: rgba(216,203,199,.8);
+  text-decoration: none;
+  transition: color .25s, translate .3s var(--e-out);
+  display: inline-block;
+}
+.sf-footer nav a:hover {
+  color: #fff;
+  translate: 3px 0;
+}
+
+.sf-footer > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffbd59 !important;
+  text-decoration: none;
+  font-weight: 700;
+  transition: gap .3s var(--e-out), opacity .25s;
+}
+.sf-footer > a:hover { gap: 12px; opacity: .9; }
+
+/* Social icons */
+.sf-footer-socials a {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(237,231,220,.14);
+  border-radius: 50%;
+  color: rgba(255,189,89,.85) !important;
+  transition: transform .35s var(--e-out), border-color .25s, color .25s, box-shadow .35s !important;
+}
+.sf-footer-socials a:hover {
+  transform: translateY(-3px) scale(1.08) !important;
+  border-color: rgba(255,189,89,.5);
+  color: #ffbd59 !important;
+  box-shadow: 0 8px 24px rgba(255,189,89,.18);
+}
+
+/* ── 18. Loading skeletons ─────────────────────────────────────────────────── */
+.loading-logo,
+.loading-hero,
+.loading-grid > div {
+  background: linear-gradient(
+    100deg,
+    #ede5de 0%,
+    #f7f1ec 35%,
+    #fff 50%,
+    #f7f1ec 65%,
+    #ede5de 100%
+  ) !important;
+  background-size: 300% 100% !important;
+  animation: shimmer 1.6s linear infinite !important;
+  border-radius: 10px;
+}
+.loading-hero { border-radius: 999px 999px 10px 10px !important; }
+@keyframes shimmer {
+  from { background-position: 150% 0; }
+  to   { background-position: -150% 0; }
+}
+
+/* ── 19. Empty states ──────────────────────────────────────────────────────── */
+.sf-empty,
+.cart-empty {
+  border: 1.5px dashed rgba(84,23,28,.2) !important;
+  border-radius: 999px 999px 14px 14px !important;
+  background: rgba(246,236,229,.25) !important;
+  animation: hero-child-in .6s var(--e-out) both;
+}
+.sf-empty svg,
+.cart-empty svg { color: #7d242c !important; }
+.cart-empty h1 {
+  font-size: 36px !important;
+  letter-spacing: -.04em;
+}
+
+/* ── 20. Pagination ────────────────────────────────────────────────────────── */
+.pagination a {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(125,36,44,.22);
+  font-weight: 700;
+  font-size: 13px;
+  transition: background .25s, color .25s, transform .3s var(--e-out), box-shadow .3s;
+  text-decoration: none;
+  color: #7d242c;
+}
+.pagination a:hover {
+  background: #7d242c;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: var(--wine-glow);
+}
+
+/* ── 21. Dialogs & modals ──────────────────────────────────────────────────── */
+.p-dialog {
+  border-radius: 20px !important;
+  border: 1px solid rgba(84,23,28,.1) !important;
+  box-shadow: 0 40px 100px rgba(36,27,26,.3) !important;
+  animation: dialog-in .4s var(--e-out) both;
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.p-dialog h2 { letter-spacing: -.035em !important; }
+.p-dialog input,
+.p-dialog textarea,
+.p-dialog select {
+  border-radius: 10px !important;
+  transition: border-color .25s, box-shadow .25s !important;
+}
+.p-dialog input:focus,
+.p-dialog textarea:focus,
+.p-dialog select:focus {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 3px rgba(125,36,44,.1) !important;
+  outline: none !important;
+}
+.p-overlay {
+  animation: fade-in .25s ease both;
+  backdrop-filter: blur(4px);
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── 22. Confirmation page ─────────────────────────────────────────────────── */
+.confirmation-icon {
+  animation: pop-in .6s var(--e-out) both;
+  box-shadow: 0 12px 36px rgba(55,113,90,.2) !important;
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.confirmation h1 {
+  letter-spacing: -.05em !important;
+  animation: hero-child-in .7s var(--e-out) .15s both;
+}
+.confirmation-actions a {
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out), background .25s, color .25s !important;
+}
+.confirmation-actions a:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wine-glow) !important;
+  background: #7d242c;
+  color: #fff !important;
+}
+
+/* ── 23. Catalogue filter bar ──────────────────────────────────────────────── */
+.catalog-filter {
+  border-radius: 16px !important;
+  border: 1px solid rgba(84,23,28,.1) !important;
+  box-shadow: var(--sh-xs) !important;
+  background: #fff !important;
+}
+.catalog-filter input,
+.catalog-filter select {
+  border-radius: 9px !important;
+  transition: border-color .25s, box-shadow .25s !important;
+}
+.catalog-filter input:focus,
+.catalog-filter select:focus {
+  border-color: #7d242c !important;
+  box-shadow: 0 0 0 3px rgba(125,36,44,.08) !important;
+  outline: none !important;
+}
+.catalog-filter button {
+  transition: transform .3s var(--e-out), box-shadow .3s, background .25s !important;
+}
+.catalog-filter button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(125,36,44,.22) !important;
+}
+.catalog-filter button:active { transform: scale(.97); }
+
+/* ── 24. Category pills (collection page) ──────────────────────────────────── */
+.category-pills button {
+  transition: background .25s, color .25s, box-shadow .25s !important;
+}
+.category-pills button:hover:not(.active) {
+  background: rgba(125,36,44,.06) !important;
+  color: #7d242c !important;
+}
+.category-pills button.active {
+  background: #7d242c !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(125,36,44,.2) !important;
+}
+
+/* ── 25. Breadcrumbs ───────────────────────────────────────────────────────── */
+.breadcrumbs a {
+  transition: color .25s;
+  font-weight: 500;
+}
+.breadcrumbs a:hover { color: #7d242c; }
+.breadcrumbs svg { color: #a09088; }
+
+/* ── 26. Admin panel ───────────────────────────────────────────────────────── */
+/* Subtle sidebar nav enhancements only */
+.admin-sidebar nav button {
+  transition: background .25s, color .25s, transform .3s var(--e-out) !important;
+}
+.admin-sidebar nav button:hover:not(.active) {
+  background: rgba(129,44,44,.18) !important;
+  transform: translateX(3px);
+}
+.admin-sidebar nav button.active {
+  transform: translateX(2px);
+}
+
+/* KPI cards */
+.admin-kpis article {
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out) !important;
+}
+.admin-kpis article:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sh-md) !important;
+}
+.admin-kpis strong {
+  letter-spacing: -.04em;
+  transition: color .25s;
+}
+
+/* ── 27. Services page ─────────────────────────────────────────────────────── */
+.service-cards article {
+  border-radius: 14px !important;
+  transition: transform .4s var(--e-out), box-shadow .4s var(--e-out), border-color .3s !important;
+}
+.service-cards article:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-md) !important;
+  border-color: rgba(84,23,28,.2) !important;
+}
+.service-cards article > svg {
+  transition: transform .4s var(--e-out);
+}
+.service-cards article:hover > svg { transform: scale(1.15) rotate(-5deg); }
+
+/* ── 28. WhatsApp button ───────────────────────────────────────────────────── */
+.whatsapp {
+  transition: transform .35s var(--e-out), box-shadow .35s var(--e-out) !important;
+}
+.whatsapp:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(55,111,75,.28) !important;
+}
+.whatsapp:active { transform: scale(.97); }
+
+/* ── 29. Status badges ─────────────────────────────────────────────────────── */
+.status-badge {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: .05em;
+  border-radius: 999px !important;
+}
+
+/* ── 30. Global button polish (anything with class .button) ────────────────── */
+/* This covers platform buttons not addressed individually above */
+.sf-site .button,
+.sf-site button.button {
+  transition:
+    transform     .35s var(--e-out),
+    box-shadow    .35s var(--e-out),
+    background    .25s,
+    border-color  .25s !important;
+}
+.sf-site .button:hover {
+  transform: translateY(-2px);
+}
+.sf-site .button:active {
+  transform: scale(.97);
+  box-shadow: none !important;
+}
+
+/* ── 31. Reduced motion — full shutdown ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .rv { opacity: 1 !important; transform: none !important; }
+  .cdk-dot-amber,
+  .cdk-dot-teal { animation: none !important; }
+}
+
+/* ── 32. Responsive touch-ups ──────────────────────────────────────────────── */
+@media (max-width: 1050px) {
+  .sf-product-image { height: 260px !important; }
+  .category-arch { height: 300px !important; }
+}
+
+@media (max-width: 760px) {
+  .home-seller { border-radius: 14px !important; }
+  .home-actions a { min-height: 46px !important; }
+  .sf-product-image { height: 240px !important; }
+  .cdk-section { padding: 36px 18px !important; }
+}
+
+@media (max-width: 500px) {
+  .sf-product-image { height: 310px !important; }
+  .home-seller > a { width: 100% !important; justify-content: center !important; }
+  .confirmation h1 { font-size: 36px !important; }
+}
+
+/* ── 33. High-DPI refinement ───────────────────────────────────────────────── */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .sf-header { backdrop-filter: blur(28px) saturate(1.6) !important; }
+  .cdk-section::before { height: .5px; }
+}
+
+/* ── 34. Print ─────────────────────────────────────────────────────────────── */
+@media print {
+  .sf-announcement,
+  .sf-header,
+  .cdk-section,
+  .home-seller,
+  .sf-footer { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+}
